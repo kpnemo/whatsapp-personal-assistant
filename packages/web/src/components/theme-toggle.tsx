@@ -30,7 +30,7 @@ export function ThemeToggle(): JSX.Element {
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Toggle theme"
-        className="inline-flex size-9 items-center justify-center rounded-md border border-slate-700 text-slate-300 hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+        className="inline-flex size-9 items-center justify-center rounded-md border border-input bg-background text-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         <TriggerIcon className="size-4" aria-hidden="true" />
         <span className="sr-only">Toggle theme</span>
