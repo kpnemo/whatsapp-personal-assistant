@@ -1,0 +1,32 @@
+app = "whatsapp-personal-assistant"
+primary_region = "iad"
+
+[build]
+  dockerfile = "../../Dockerfile"
+
+[[services]]
+  internal_port = 3000
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 200
+    soft_limit = 150
+
+  [[services.http_checks]]
+    path = "/healthz"
+    interval = "30s"
+    timeout = "5s"
+
+[env]
+  NODE_ENV = "production"
+  ENTRYPOINT_ROLE = "all"

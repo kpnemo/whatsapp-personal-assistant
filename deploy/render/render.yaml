@@ -1,0 +1,36 @@
+databases:
+  - name: wpa-db
+    plan: starter
+    postgresMajorVersion: 16
+
+services:
+  - type: web
+    name: wpa-app
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ENTRYPOINT_ROLE
+        value: all
+      - key: MASTER_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: PUBLIC_APP_ORIGIN
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: wpa-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: wpa-redis
+          property: connectionString
+
+  - type: redis
+    name: wpa-redis
+    plan: starter
+    ipAllowList: []

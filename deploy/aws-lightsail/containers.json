@@ -1,0 +1,21 @@
+{
+  "containers": {
+    "app": {
+      "image": "ghcr.io/<owner>/whatsapp-personal-assistant:latest",
+      "environment": {
+        "NODE_ENV": "production",
+        "ENTRYPOINT_ROLE": "all"
+      },
+      "ports": {
+        "3000": "HTTP"
+      }
+    }
+  },
+  "publicEndpoint": {
+    "containerName": "app",
+    "containerPort": 3000,
+    "healthCheck": {
+      "path": "/healthz"
+    }
+  }
+}
