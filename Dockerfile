@@ -3,7 +3,8 @@ ARG NODE_VERSION=22.22.2
 ARG PNPM_VERSION=9.12.3
 
 FROM node:${NODE_VERSION}-alpine AS base
-RUN npm install -g corepack@latest \
+RUN apk add --no-cache openssl \
+ && npm install -g corepack@latest \
  && corepack enable \
  && corepack prepare pnpm@${PNPM_VERSION} --activate
 WORKDIR /app
@@ -30,7 +31,7 @@ FROM node:${NODE_VERSION}-alpine AS runtime
 RUN npm install -g corepack@latest \
  && corepack enable \
  && corepack prepare pnpm@${PNPM_VERSION} --activate \
- && apk add --no-cache supervisor tini curl
+ && apk add --no-cache supervisor tini curl openssl
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PNPM_HOME=/usr/local/share/pnpm
