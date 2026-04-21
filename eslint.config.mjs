@@ -29,6 +29,7 @@ export default tseslint.config(
             "vitest.workspace.ts",
             "packages/shared/vitest.config.ts",
             "packages/api/vitest.config.ts",
+            "packages/test-utils/vitest.config.ts",
           ],
           defaultProject: "tsconfig.base.json",
         },
