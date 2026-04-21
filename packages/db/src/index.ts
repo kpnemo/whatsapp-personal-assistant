@@ -1,5 +1,15 @@
-export * from "./generated/index.js";
-import { PrismaClient } from "./generated/index.js";
+import { PrismaClient } from "@prisma/client";
+
+export { Prisma, PrismaClient } from "@prisma/client";
+export type {
+  ApiKey,
+  AuditLog,
+  AuditType,
+  Invitation,
+  RefreshToken,
+  Role,
+  User,
+} from "@prisma/client";
 
 let instance: PrismaClient | undefined;
 
