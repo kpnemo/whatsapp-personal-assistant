@@ -7,6 +7,7 @@ import { pinoHttp } from "pino-http";
 import { env } from "./env.js";
 import { logger } from "./logger.js";
 import { authRouter } from "./routes/auth.js";
+import { invitationsRouter } from "./routes/invitations.js";
 
 export function createApp(): Express {
   const app = express();
@@ -34,6 +35,7 @@ export function createApp(): Express {
   });
 
   app.use("/api", authRouter());
+  app.use("/api", invitationsRouter());
 
   app.use((_req, res) => {
     res.status(404).json({ error: "not_found" });
