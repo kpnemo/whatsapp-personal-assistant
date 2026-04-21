@@ -29,7 +29,16 @@ open http://localhost:3000
 
 First account registered becomes admin. Subsequent users join via invitation tokens.
 
-<!-- Deploy buttons (Railway, Fly.io, Render) are added in Epic 22 — one-click deploy templates. -->
+## Deploy
+
+One-click options for hosted platforms — full config in [`deploy/`](deploy/).
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https%3A%2F%2Fgithub.com%2F%3Cowner%3E%2Fwhatsapp-personal-assistant&referralCode=wpa)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/<owner>/whatsapp-personal-assistant)
+
+Also supported: [Fly.io](deploy/flyio/) · [AWS Lightsail Containers](deploy/aws-lightsail/) · [Vercel (frontend only)](deploy/vercel/)
+
+> Vercel hosts the SPA only — the backend needs a persistent runtime (Baileys WebSocket, BullMQ, Agent loop). See [`deploy/vercel/README.md`](deploy/vercel/README.md).
 
 ## Links
 
