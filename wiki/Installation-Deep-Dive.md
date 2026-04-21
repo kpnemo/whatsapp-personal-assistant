@@ -1,6 +1,6 @@
 # Installation Deep Dive
 
-The short, up-to-date install guide lives in the repo: [`docs/INSTALL.md`](https://github.com/<owner>/whatsapp-personal-assistant/blob/main/docs/INSTALL.md). This page is a longer companion for ops-curious readers.
+The short, up-to-date install guide lives in the repo: [`docs/INSTALL.md`](https://github.com/kpnemo/whatsapp-personal-assistant/blob/main/docs/INSTALL.md). This page is a longer companion for ops-curious readers.
 
 ## What you actually need
 

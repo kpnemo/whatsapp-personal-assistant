@@ -10,7 +10,7 @@ hero:
       link: /guide/quickstart
     - theme: alt
       text: GitHub
-      link: https://github.com/<owner>/whatsapp-personal-assistant
+      link: https://github.com/kpnemo/whatsapp-personal-assistant
 features:
   - title: Silent by default
     details: Assistant reads everything, writes nothing until you say so — per conversation.

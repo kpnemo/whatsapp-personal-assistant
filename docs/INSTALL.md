@@ -11,7 +11,7 @@ Goal: from a fresh VPS to a reachable login screen in under 5 minutes.
 ## Local install (any Linux or macOS)
 
 ```bash
-git clone https://github.com/<owner>/whatsapp-personal-assistant.git
+git clone https://github.com/kpnemo/whatsapp-personal-assistant.git
 cd whatsapp-personal-assistant
 bash scripts/first-run.sh       # generates .env, secrets, prints MASTER_KEY once
 docker compose up -d

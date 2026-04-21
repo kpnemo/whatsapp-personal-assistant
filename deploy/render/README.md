@@ -4,9 +4,9 @@ Deploy WPA to [Render](https://render.com) using a single Blueprint (`render.yam
 
 ## Deploy button
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/<owner>/whatsapp-personal-assistant)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/kpnemo/whatsapp-personal-assistant)
 
-Replace `<owner>` with your GitHub org/user before sharing the button.
+Replace `kpnemo` with your GitHub org/user before sharing the button.
 
 ## What the Blueprint provisions
 

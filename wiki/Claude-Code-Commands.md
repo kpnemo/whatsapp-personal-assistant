@@ -2,7 +2,7 @@
 
 This project ships with `/wpa:*` slash commands for [Claude Code](https://claude.com/claude-code). They automate the install, start, diagnose, and kill flows.
 
-Authoritative list lives in the repo: [`CLAUDE.md`](https://github.com/<owner>/whatsapp-personal-assistant/blob/main/CLAUDE.md) (published in Epic 16).
+Authoritative list lives in the repo: [`CLAUDE.md`](https://github.com/kpnemo/whatsapp-personal-assistant/blob/main/CLAUDE.md) (published in Epic 16).
 
 ## The commands
 
@@ -16,4 +16,4 @@ Authoritative list lives in the repo: [`CLAUDE.md`](https://github.com/<owner>/w
 
 ## Adding your own
 
-See [`docs/CONTRIBUTING.md`](https://github.com/<owner>/whatsapp-personal-assistant/blob/main/docs/CONTRIBUTING.md#how-to-add-a-wpacommand) for the step-by-step.
+See [`docs/CONTRIBUTING.md`](https://github.com/kpnemo/whatsapp-personal-assistant/blob/main/docs/CONTRIBUTING.md#how-to-add-a-wpacommand) for the step-by-step.

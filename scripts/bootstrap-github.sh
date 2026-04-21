@@ -2,10 +2,10 @@
 # One-time GitHub repo bootstrap. Requires: gh CLI authenticated as the repo owner/admin.
 #
 # Usage:
-#   scripts/bootstrap-github.sh <owner>/<repo> [maintainer-email]
+#   scripts/bootstrap-github.sh kpnemo/<repo> [maintainer-email]
 #
 # Or via env:
-#   WPA_MAINTAINER_EMAIL=you@example.com scripts/bootstrap-github.sh <owner>/<repo>
+#   WPA_MAINTAINER_EMAIL=you@example.com scripts/bootstrap-github.sh kpnemo/<repo>
 #
 # What it does:
 #   - Sets visibility / description / homepage / topics.
@@ -22,7 +22,7 @@
 
 set -euo pipefail
 
-REPO="${1:?usage: bootstrap-github.sh <owner>/<repo> [maintainer-email]}"
+REPO="${1:?usage: bootstrap-github.sh kpnemo/<repo> [maintainer-email]}"
 MAINTAINER_EMAIL="${2:-${WPA_MAINTAINER_EMAIL:-}}"
 
 # --- Preflight --------------------------------------------------------------

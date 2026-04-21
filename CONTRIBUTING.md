@@ -5,7 +5,7 @@ Thanks for considering a contribution. This repo is designed to be **read before
 ## Quick start
 
 ```bash
-git clone https://github.com/<owner>/whatsapp-personal-assistant.git
+git clone https://github.com/kpnemo/whatsapp-personal-assistant.git
 cd whatsapp-personal-assistant
 pnpm install
 cp .env.example .env
