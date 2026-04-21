@@ -61,7 +61,13 @@ export default tseslint.config(
     },
     settings: {
       "import/resolver": {
-        typescript: { alwaysTryTypes: true, project: ["packages/*/tsconfig.json"] },
+        typescript: {
+          alwaysTryTypes: true,
+          // Absolute-path glob so the resolver finds per-package tsconfigs
+          // regardless of whether eslint is invoked from the repo root
+          // (pre-commit hook) or a package dir (`pnpm --filter <pkg> lint`).
+          project: [`${import.meta.dirname}/packages/*/tsconfig.json`],
+        },
       },
     },
   },
