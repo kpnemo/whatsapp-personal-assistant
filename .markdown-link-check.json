@@ -2,8 +2,11 @@
   "ignorePatterns": [
     { "pattern": "^\\.\\./\\.\\./(issues|discussions|wiki|pulls)" },
     { "pattern": "<owner>" },
+    { "pattern": "%3Cowner%3E" },
     { "pattern": "^\\.\\.?/deploy/" },
-    { "pattern": "^\\.\\.?/\\.claude/" }
+    { "pattern": "^\\.\\.?/\\.claude/" },
+    { "pattern": "^\\./[A-Z][A-Za-z0-9-]*$" },
+    { "pattern": "^\\./deploy$" }
   ],
   "retryOn429": true,
   "retryCount": 3,

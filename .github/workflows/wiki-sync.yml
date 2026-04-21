@@ -1,0 +1,33 @@
+name: wiki-sync
+on:
+  push:
+    branches: [main]
+    paths:
+      - "wiki/**"
+      - ".github/workflows/wiki-sync.yml"
+permissions:
+  contents: write
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+      COMMIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Push wiki
+        run: |
+          WIKI_URL="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.wiki.git"
+          git config --global user.name "wiki-sync"
+          git config --global user.email "wiki-sync@users.noreply.github.com"
+          git clone --depth=1 "$WIKI_URL" wiki-repo || git init wiki-repo
+          rsync -a --delete --exclude='.git' wiki/ wiki-repo/
+          cd wiki-repo
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "sync from main @ ${COMMIT_SHA}"
+            git push "$WIKI_URL" HEAD:master
+          fi
