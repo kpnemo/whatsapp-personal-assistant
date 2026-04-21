@@ -1,0 +1,11 @@
+# Copy to docker-compose.override.yml for local dev with hot reload.
+services:
+  app:
+    build:
+      target: build
+    command: pnpm -r --parallel dev
+    volumes:
+      - ./packages:/app/packages
+      - ./prisma:/app/prisma
+    environment:
+      NODE_ENV: development

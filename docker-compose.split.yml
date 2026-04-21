@@ -1,0 +1,14 @@
+# Advanced: run api/worker/agent as separate services for crash isolation.
+services:
+  app: { profiles: ["disabled"] }
+  api:
+    extends: { file: docker-compose.yml, service: app }
+    environment: { ENTRYPOINT_ROLE: api }
+  worker:
+    extends: { file: docker-compose.yml, service: app }
+    environment: { ENTRYPOINT_ROLE: worker }
+    ports: []
+  agent:
+    extends: { file: docker-compose.yml, service: app }
+    environment: { ENTRYPOINT_ROLE: agent }
+    ports: []
