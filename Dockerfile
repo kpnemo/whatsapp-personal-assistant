@@ -23,7 +23,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 FROM deps AS build
 COPY . .
 RUN pnpm --filter @wpa/db exec prisma generate
-RUN pnpm -r --filter "@wpa/*" build
+RUN pnpm -r --filter "@wpa/*" --filter "!@wpa/test-utils" build
 RUN pnpm --filter @wpa/web build
 
 FROM node:${NODE_VERSION}-alpine AS runtime
