@@ -46,3 +46,9 @@ Vercel can host the SPA, but **not the backend** (Baileys requires a long-lived 
 1. Open the dashboard; the first registered user becomes admin.
 2. Create invitation tokens via `POST /api/invitations` for family members.
 3. Phase 1 adds QR pairing. For P0, there is no WhatsApp integration.
+
+## P0 fresh-VPS timing
+
+The `scripts/smoke-test.sh` end-to-end check asserts register → login → `/auth/me` → SPA index in a clean run; it runs on every PR and push via the `smoke` job in `.github/workflows/ci.yml`.
+
+Fresh-VPS wall-clock timing (DigitalOcean / Hetzner class, 1 vCPU / 2 GB RAM, Ubuntu 24.04) has **not yet been measured** on the released image. Once the first `ghcr.io` tag is published, the operator should record `git clone` → `/healthz` ready wall-clock here. Target budget to keep the README "5-minute install" claim honest: under 5 minutes using the pre-pulled image, under 7 minutes on a cold `--build`.
