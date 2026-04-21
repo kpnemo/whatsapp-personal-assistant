@@ -34,3 +34,13 @@ MASTER_KEY (env, 32 bytes, never logged)
 ## Reporting
 
 Use [private vulnerability reporting](../SECURITY.md).
+
+## Dependency audit posture
+
+Last full audit: **2026-04-21** (Epic 25).
+
+`pnpm audit --audit-level=high` is clean. Accepted lower-severity exposures:
+
+- `vitest@2.1.9` bundles `vite@5.4.21` and `esbuild@0.21.5` (dev-only, test runner internals). This yields 3 moderate + 1 low transitive advisories (GHSA-4w7w-66w2-5vf9, GHSA-67mh-4wv8-2f99, GHSA-vg6x-rcgg-rjx6). We stay on vitest 2.x per the P0 plan's locked majors; these paths never reach production builds.
+
+Majors locked by plan (do not auto-bump): Express 5, React 19, Tailwind 4, Prisma 6, ESLint 9, Vite 6, Vitest 2, Zod 3, express-rate-limit 7.
