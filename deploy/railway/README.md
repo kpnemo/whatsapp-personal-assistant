@@ -4,9 +4,9 @@ One-click deploy of the WhatsApp Personal Assistant (WPA) to [Railway](https://r
 
 ## Deploy button
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https%3A%2F%2Fgithub.com%2F%3Cowner%3E%2Fwhatsapp-personal-assistant&referralCode=wpa)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https%3A%2F%2Fgithub.com%2Fkpnemo%2Fwhatsapp-personal-assistant&referralCode=wpa)
 
-Replace `<owner>` with your GitHub org/user before using the button in your fork.
+Replace `kpnemo` with your GitHub org/user before using the button in your fork.
 
 ## What this template does
 

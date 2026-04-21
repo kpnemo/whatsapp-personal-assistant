@@ -21,13 +21,13 @@ aws lightsail create-container-service \
   --power small \
   --scale 1
 
-# 2. Deploy using this containers.json (edit <owner> first!)
+# 2. Deploy using this containers.json (edit kpnemo first!)
 aws lightsail create-container-service-deployment \
   --service-name wpa \
   --cli-input-json file://containers.json
 ```
 
-Lightsail Containers pull directly from `ghcr.io/<owner>/whatsapp-personal-assistant:latest` — publish the image first via the repo's `release.yml` (push a `v*` tag).
+Lightsail Containers pull directly from `ghcr.io/kpnemo/whatsapp-personal-assistant:latest` — publish the image first via the repo's `release.yml` (push a `v*` tag).
 
 ## Companion AWS services
 

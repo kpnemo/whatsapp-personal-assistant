@@ -2,12 +2,12 @@
 
 Get from zero to a reachable login screen in under 5 minutes.
 
-The authoritative step-by-step guide lives in the repo: [`docs/INSTALL.md`](https://github.com/<owner>/whatsapp-personal-assistant/blob/main/docs/INSTALL.md).
+The authoritative step-by-step guide lives in the repo: [`docs/INSTALL.md`](https://github.com/kpnemo/whatsapp-personal-assistant/blob/main/docs/INSTALL.md).
 
 ## TL;DR with Claude Code
 
 ```bash
-git clone https://github.com/<owner>/whatsapp-personal-assistant.git
+git clone https://github.com/kpnemo/whatsapp-personal-assistant.git
 cd whatsapp-personal-assistant
 claude
 > /wpa:init

@@ -332,7 +332,7 @@ message.body / summary.body / audit.details / etc.
 
 - `ci.yml` — pnpm turbo: lint, typecheck, test (Vitest + React Testing Library), coverage gate (≥70 % backend).
 - `codeql.yml` — weekly + on PR.
-- `release.yml` — on tag `v*`: build multi-arch image (amd64 + arm64), cosign sign, push `ghcr.io/<owner>/whatsapp-personal-assistant:<tag>`, create GitHub release with changelog.
+- `release.yml` — on tag `v*`: build multi-arch image (amd64 + arm64), cosign sign, push `ghcr.io/kpnemo/whatsapp-personal-assistant:<tag>`, create GitHub release with changelog.
 - Dependabot + Renovate configured from P0.
 
 ### One-click deploy targets (`deploy/` folder)
@@ -447,7 +447,7 @@ The repo is public from day one. We use GitHub as the full product platform: cod
 ### GitHub Pages (project website)
 
 - Source: `main` branch, `/website` folder (Astro Starlight or VitePress — TBD in P0 plan; likely VitePress for TS consistency)
-- Published to `https://<owner>.github.io/whatsapp-personal-assistant` (or custom domain when the user points one)
+- Published to `https://kpnemo.github.io/whatsapp-personal-assistant` (or custom domain when the user points one)
 - Content: landing page (what this is + screenshots), quickstart, "deploy anywhere" targets, architecture diagrams, FAQ, roadmap (generated from GitHub Projects)
 - Build in `docs-site.yml`; deploy via `actions/deploy-pages`
 

@@ -3,7 +3,7 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, develop]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -101,6 +101,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @wpa/db exec prisma generate
+      - run: pnpm --filter @wpa/shared --filter @wpa/db build
       - run: pnpm --filter @wpa/db exec prisma migrate deploy
       - run: pnpm test
 

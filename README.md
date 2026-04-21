@@ -11,7 +11,7 @@ Why this exists, who it's for, and what it will never become: [`docs/VISION.md`]
 ### 1. With Claude Code (recommended)
 
 ```bash
-git clone https://github.com/<owner>/whatsapp-personal-assistant.git
+git clone https://github.com/kpnemo/whatsapp-personal-assistant.git
 cd whatsapp-personal-assistant
 claude
 > /wpa:init
@@ -33,8 +33,8 @@ First account registered becomes admin. Subsequent users join via invitation tok
 
 One-click options for hosted platforms — full config in [`deploy/`](deploy/).
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https%3A%2F%2Fgithub.com%2F%3Cowner%3E%2Fwhatsapp-personal-assistant&referralCode=wpa)
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/<owner>/whatsapp-personal-assistant)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https%3A%2F%2Fgithub.com%2Fkpnemo%2Fwhatsapp-personal-assistant&referralCode=wpa)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/kpnemo/whatsapp-personal-assistant)
 
 Also supported: [Fly.io](deploy/flyio/) · [AWS Lightsail Containers](deploy/aws-lightsail/) · [Vercel (frontend only)](deploy/vercel/)
 
@@ -51,7 +51,7 @@ Also supported: [Fly.io](deploy/flyio/) · [AWS Lightsail Containers](deploy/aws
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture overview (links to HLD)
 - [`docs/superpowers/specs/`](docs/superpowers/specs/) — design docs, per phase
 - [GitHub Wiki](../../wiki) — deeper guides, rule cookbook, troubleshooting
-- Project website — `https://<owner>.github.io/whatsapp-personal-assistant` (landing + docs; live after Epic 21)
+- [Project website](https://kpnemo.github.io/whatsapp-personal-assistant/) — landing + docs
 
 ## License
 

@@ -1,7 +1,7 @@
 {
   "containers": {
     "app": {
-      "image": "ghcr.io/<owner>/whatsapp-personal-assistant:latest",
+      "image": "ghcr.io/kpnemo/whatsapp-personal-assistant:latest",
       "environment": {
         "NODE_ENV": "production",
         "ENTRYPOINT_ROLE": "all"

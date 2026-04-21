@@ -1,11 +1,11 @@
 # Default: repo owner reviews everything.
-*                                 @<owner>
+*                                 @kpnemo
 
 # Sensitive areas — owner must review even if a general reviewer approved.
-.claude/                          @<owner>
-.github/                          @<owner>
-docs/VISION.md                    @<owner>
-docs/SECURITY.md                  @<owner>
-docs/superpowers/specs/**         @<owner>
-packages/shared/src/crypto.ts     @<owner>
-packages/api/src/auth/**          @<owner>
+.claude/                          @kpnemo
+.github/                          @kpnemo
+docs/VISION.md                    @kpnemo
+docs/SECURITY.md                  @kpnemo
+docs/superpowers/specs/**         @kpnemo
+packages/shared/src/crypto.ts     @kpnemo
+packages/api/src/auth/**          @kpnemo

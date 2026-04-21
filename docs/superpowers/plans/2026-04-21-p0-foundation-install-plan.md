@@ -4151,7 +4151,7 @@ A self-hosted personal AI assistant for WhatsApp. Reads your chats, summarizes w
 ### 1. With Claude Code (recommended)
 
 ```bash
-git clone https://github.com/<owner>/whatsapp-personal-assistant.git
+git clone https://github.com/kpnemo/whatsapp-personal-assistant.git
 cd whatsapp-personal-assistant
 claude
 > /wpa:init
@@ -4176,7 +4176,7 @@ First account registered becomes admin.
 - [`docs/SECURITY.md`](docs/SECURITY.md) — threat model + responsible disclosure
 - [`docs/superpowers/specs/`](docs/superpowers/specs/) — design docs per phase
 - [GitHub Wiki](../../wiki) — deeper guides, rule cookbook, troubleshooting
-- [Project website](https://<owner>.github.io/whatsapp-personal-assistant) — landing + docs
+- [Project website](https://kpnemo.github.io/whatsapp-personal-assistant) — landing + docs
 
 ## License
 
@@ -4282,7 +4282,7 @@ Goal: from a fresh VPS to a reachable login screen in under 5 minutes.
 ## Local install (any Linux or macOS)
 
 ```bash
-git clone https://github.com/<owner>/whatsapp-personal-assistant.git
+git clone https://github.com/kpnemo/whatsapp-personal-assistant.git
 cd whatsapp-personal-assistant
 bash scripts/first-run.sh       # generates .env, secrets, prints MASTER_KEY once
 docker compose up -d
@@ -4426,10 +4426,10 @@ body:
 blank_issues_enabled: false
 contact_links:
   - name: Question / help
-    url: https://github.com/<owner>/whatsapp-personal-assistant/discussions/categories/q-a
+    url: https://github.com/kpnemo/whatsapp-personal-assistant/discussions/categories/q-a
     about: Use Discussions for usage questions.
   - name: Security vulnerability
-    url: https://github.com/<owner>/whatsapp-personal-assistant/security/advisories/new
+    url: https://github.com/kpnemo/whatsapp-personal-assistant/security/advisories/new
     about: Use private vulnerability reporting. Never open a public issue for security.
 ```
 
@@ -4460,14 +4460,14 @@ Fixes #
 - [ ] **Step 5: `.github/CODEOWNERS`**
 
 ```
-*                                 @<owner>
-.claude/                          @<owner>
-.github/                          @<owner>
-docs/VISION.md                    @<owner>
-docs/SECURITY.md                  @<owner>
-docs/superpowers/specs/**         @<owner>
-packages/shared/src/crypto.ts     @<owner>
-packages/api/src/auth/**          @<owner>
+*                                 @kpnemo
+.claude/                          @kpnemo
+.github/                          @kpnemo
+docs/VISION.md                    @kpnemo
+docs/SECURITY.md                  @kpnemo
+docs/superpowers/specs/**         @kpnemo
+packages/shared/src/crypto.ts     @kpnemo
+packages/api/src/auth/**          @kpnemo
 ```
 
 - [ ] **Step 6: `.github/dependabot.yml`**
@@ -4508,9 +4508,9 @@ git commit -m "ci: issue/PR templates, CODEOWNERS, dependabot"
 ```bash
 #!/usr/bin/env bash
 # One-time GitHub repo bootstrap. Requires: gh CLI authenticated as the repo owner/admin.
-# Usage: scripts/bootstrap-github.sh <owner>/<repo>
+# Usage: scripts/bootstrap-github.sh kpnemo/<repo>
 set -euo pipefail
-REPO="${1:?usage: bootstrap-github.sh <owner>/<repo>}"
+REPO="${1:?usage: bootstrap-github.sh kpnemo/<repo>}"
 
 # Visibility + description
 gh repo edit "$REPO" \
@@ -4616,7 +4616,7 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: "Guide", link: "/guide/quickstart" },
-      { text: "GitHub", link: "https://github.com/<owner>/whatsapp-personal-assistant" },
+      { text: "GitHub", link: "https://github.com/kpnemo/whatsapp-personal-assistant" },
     ],
     sidebar: [
       {
@@ -4629,7 +4629,7 @@ export default defineConfig({
       },
     ],
     search: { provider: "local" },
-    socialLinks: [{ icon: "github", link: "https://github.com/<owner>/whatsapp-personal-assistant" }],
+    socialLinks: [{ icon: "github", link: "https://github.com/kpnemo/whatsapp-personal-assistant" }],
   },
 });
 ```
@@ -4649,7 +4649,7 @@ hero:
       link: /guide/quickstart
     - theme: alt
       text: GitHub
-      link: https://github.com/<owner>/whatsapp-personal-assistant
+      link: https://github.com/kpnemo/whatsapp-personal-assistant
 features:
   - title: Silent by default
     details: Assistant reads everything, writes nothing until you say so — per conversation.
@@ -4884,7 +4884,7 @@ services:
 {
   "containers": {
     "app": {
-      "image": "ghcr.io/<owner>/whatsapp-personal-assistant:latest",
+      "image": "ghcr.io/kpnemo/whatsapp-personal-assistant:latest",
       "environment": {
         "NODE_ENV": "production",
         "ENTRYPOINT_ROLE": "all"
@@ -4945,8 +4945,8 @@ Modify `README.md` to add a "Deploy" section with buttons after the manual path.
 ```markdown
 ## Deploy
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https%3A%2F%2Fgithub.com%2F<owner>%2Fwhatsapp-personal-assistant&referralCode=wpa)
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/<owner>/whatsapp-personal-assistant)
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/new/template?template=https%3A%2F%2Fgithub.com%2Fkpnemo%2Fwhatsapp-personal-assistant&referralCode=wpa)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/kpnemo/whatsapp-personal-assistant)
 [Fly.io](deploy/flyio/) · [AWS Lightsail Containers](deploy/aws-lightsail/) · [Vercel (frontend only)](deploy/vercel/)
 ```
 

@@ -1,8 +1,8 @@
 {
   "ignorePatterns": [
     { "pattern": "^\\.\\./\\.\\./(issues|discussions|wiki|pulls)" },
-    { "pattern": "<owner>" },
-    { "pattern": "%3Cowner%3E" },
+    { "pattern": "kpnemo" },
+    { "pattern": "kpnemo" },
     { "pattern": "^\\.\\.?/deploy/" },
     { "pattern": "^\\.\\.?/\\.claude/" },
     { "pattern": "^\\./[A-Z][A-Za-z0-9-]*$" },

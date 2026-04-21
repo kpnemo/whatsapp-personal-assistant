@@ -15,7 +15,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
-    ports: ["3000:3000"]
+    ports: ["${API_HOST_PORT:-3000}:3000"]
     restart: unless-stopped
 
   postgres:

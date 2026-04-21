@@ -2,7 +2,7 @@
 
 This project is designed to run on a single host. One-click templates for Railway, Fly.io, Render, and AWS Lightsail arrive in Epic 22.
 
-Per-target step-by-step guides live in the repo: [`docs/INSTALL.md`](https://github.com/<owner>/whatsapp-personal-assistant/blob/main/docs/INSTALL.md).
+Per-target step-by-step guides live in the repo: [`docs/INSTALL.md`](https://github.com/kpnemo/whatsapp-personal-assistant/blob/main/docs/INSTALL.md).
 
 ## Supported targets
 
@@ -17,4 +17,4 @@ Per-target step-by-step guides live in the repo: [`docs/INSTALL.md`](https://git
 
 You're responsible for uptime, backups, HTTPS, and domain. We minimize that tax with docker-compose, one-click templates, Caddy for auto-HTTPS, and Claude-Code-driven ops — but we don't pretend it's zero.
 
-See [the product vision](https://github.com/<owner>/whatsapp-personal-assistant/blob/main/docs/VISION.md#constraints-we-have-accepted) for why.
+See [the product vision](https://github.com/kpnemo/whatsapp-personal-assistant/blob/main/docs/VISION.md#constraints-we-have-accepted) for why.
