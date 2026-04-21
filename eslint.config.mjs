@@ -14,8 +14,7 @@ export default tseslint.config(
       "**/coverage/**",
       "**/*.generated.*",
       "packages/web/dist/**",
-      "website/.vitepress/cache/**",
-      "website/.vitepress/dist/**",
+      "website/**",
     ],
   },
   js.configs.recommended,
@@ -24,7 +23,10 @@ export default tseslint.config(
     extends: [...tseslint.configs.recommendedTypeChecked, ...tseslint.configs.stylisticTypeChecked],
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        projectService: {
+          allowDefaultProject: ["vitest.workspace.ts"],
+          defaultProject: "tsconfig.base.json",
+        },
         tsconfigRootDir: import.meta.dirname,
       },
       globals: { ...globals.node },
