@@ -12,9 +12,9 @@ describe("app", () => {
     expect(res.body).toEqual({ status: "ok" });
   });
 
-  it("GET /does-not-exist returns 404", async () => {
-    const res = await request(app).get("/does-not-exist");
-    expect(res.status).toBe(404);
+  it("GET /api/unknown rejects unauthenticated requests with 401", async () => {
+    const res = await request(app).get("/api/unknown");
+    expect(res.status).toBe(401);
   });
 
   it("sets helmet headers", async () => {
