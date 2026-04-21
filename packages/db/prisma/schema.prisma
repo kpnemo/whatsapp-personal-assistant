@@ -29,6 +29,7 @@ model User {
   auditLogs              AuditLog[]
   apiKeys                ApiKey[]
   refreshTokens          RefreshToken[]
+  whatsappSession        WhatsappSession?
 
   @@map("users")
 }
@@ -104,4 +105,25 @@ model AuditLog {
 
   @@index([userId, createdAt(sort: Desc)])
   @@map("audit_log")
+}
+
+enum WhatsappSessionStatus {
+  pairing
+  paired
+  disconnected
+  expired
+}
+
+model WhatsappSession {
+  id               String                 @id @default(cuid())
+  userId           String                 @unique
+  user             User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status           WhatsappSessionStatus  @default(pairing)
+  phoneNumber      Bytes?
+  authState        Bytes?
+  lastConnectedAt  DateTime?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+
+  @@map("whatsapp_sessions")
 }
