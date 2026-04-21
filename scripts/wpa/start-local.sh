@@ -127,12 +127,12 @@ step_preflight_docker() {
   case "$(uname -s)" in
     Darwin)
       if command -v open >/dev/null 2>&1; then
-        open -a Docker || true
+        open -a Docker || log_warn "open -a Docker failed (is Docker Desktop installed?); will poll for the daemon anyway"
       fi
       ;;
     Linux)
       if command -v systemctl >/dev/null 2>&1; then
-        sudo systemctl start docker || true
+        sudo systemctl start docker || log_warn "sudo systemctl start docker failed (need sudo?); will poll for the daemon anyway"
       fi
       ;;
   esac
@@ -230,17 +230,25 @@ step_ensure_env() {
     exit 1
   fi
 
+  # MASTER_KEY must be present after first-run (or from the user's pre-seeded
+  # .env). Silently proceeding with an empty MASTER_KEY violates CLAUDE.md
+  # safety rule #8 — the stack would fail to decrypt at-rest data at runtime
+  # but we'd have already wasted the user's time bringing it up.
+  local master_key
+  master_key="$(read_env_var .env MASTER_KEY)"
+  if [ -z "$master_key" ]; then
+    log_error "MASTER_KEY is missing from .env; the stack cannot decrypt at-rest data."
+    log_error "fix: run 'bash scripts/first-run.sh' to generate one, or set MASTER_KEY manually in .env."
+    return 1
+  fi
+
   # Back up MASTER_KEY to the user's home (idempotent; only created on first run).
   local backup="${HOME:-/tmp}/wpa-master-key-$(date +%Y-%m-%d).txt"
   if [ ! -f "$backup" ]; then
-    local master_key
-    master_key="$(read_env_var .env MASTER_KEY)"
-    if [ -n "$master_key" ]; then
-      umask 077
-      printf 'MASTER_KEY=%s\n' "$master_key" >"$backup"
-      chmod 600 "$backup"
-      log_info "wrote MASTER_KEY backup to $backup (chmod 600)"
-    fi
+    # Scope umask to a subshell so later steps don't inherit 077 file creation.
+    ( umask 077 && printf 'MASTER_KEY=%s\n' "$master_key" >"$backup" )
+    chmod 600 "$backup"
+    log_info "wrote MASTER_KEY backup to $backup (chmod 600)"
   fi
 }
 
@@ -330,9 +338,9 @@ step_create_admin() {
   fi
 
   # Persist creds to home so the user can retrieve them later (matches MASTER_KEY pattern).
+  # Scope umask to a subshell so later shell steps don't inherit 077 file creation.
   local creds_file="${HOME:-/tmp}/.wpa-admin-$(date +%Y-%m-%d).txt"
-  umask 077
-  cat >"$creds_file" <<EOF
+  ( umask 077 && cat >"$creds_file" <<EOF
 # WhatsApp Personal Assistant — local admin credentials
 # Generated: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
 # URL:       http://localhost:$API_PORT
@@ -340,6 +348,7 @@ step_create_admin() {
 ADMIN_EMAIL=$ADMIN_EMAIL
 ADMIN_PASSWORD=$pw
 EOF
+)
   chmod 600 "$creds_file"
 
   echo ""

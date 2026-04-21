@@ -397,3 +397,31 @@ srv.shutdown()
   # No admin registration
   refute_output --partial "auth/register"
 }
+
+# ============================================================================
+# Safety: missing MASTER_KEY in .env must fail loudly, not silently proceed
+# ============================================================================
+
+@test "missing MASTER_KEY in .env: exits non-zero with a clear message" {
+  seed_fake_repo "$TEST_TMP"
+  cd "$TEST_TMP"
+
+  # Pre-seed .env WITHOUT a MASTER_KEY value (simulates a partial manual bootstrap).
+  # Must not trigger first-run.sh (file exists) AND must not trigger the
+  # idempotency detector (nothing listening on 3000).
+  cat >".env" <<'EOF'
+MASTER_KEY=
+JWT_SECRET=existingsecret
+POSTGRES_PASSWORD=existingpg
+REDIS_PASSWORD=existingrd
+API_PORT=3000
+PUBLIC_ORIGIN=http://localhost:3000
+EOF
+  chmod 600 ".env"
+
+  run bash "$SCRIPT" --dry-run --port 3000
+  assert_failure
+  assert_output --partial "MASTER_KEY"
+  # Must mention the remediation so the user isn't stuck
+  [[ "$output" == *"first-run.sh"* || "$output" == *"manually"* ]]
+}
