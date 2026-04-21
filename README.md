@@ -42,7 +42,7 @@ First account registered becomes admin. Subsequent users join via invitation tok
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — architecture overview (links to HLD)
 - [`docs/superpowers/specs/`](docs/superpowers/specs/) — design docs, per phase
 - [GitHub Wiki](../../wiki) — deeper guides, rule cookbook, troubleshooting
-- [Project website](https://<owner>.github.io/whatsapp-personal-assistant) — landing + docs
+- Project website — `https://<owner>.github.io/whatsapp-personal-assistant` (landing + docs; live after Epic 21)
 
 ## License
 
