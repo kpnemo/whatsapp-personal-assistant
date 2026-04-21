@@ -24,7 +24,7 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ["vitest.workspace.ts"],
+          allowDefaultProject: ["vitest.workspace.ts", "packages/shared/vitest.config.ts"],
           defaultProject: "tsconfig.base.json",
         },
         tsconfigRootDir: import.meta.dirname,
