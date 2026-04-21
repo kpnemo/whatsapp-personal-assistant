@@ -1,0 +1,108 @@
+generator client {
+  provider      = "prisma-client-js"
+  output        = "../src/generated"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "linux-arm64-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  admin
+  user
+}
+
+model User {
+  id                     String        @id @default(cuid())
+  email                  String        @unique
+  passwordHash           String
+  role                   Role          @default(user)
+  encryptedDek           Bytes
+  anthropicApiKey        Bytes?
+  costCapUsdMonthly      Decimal       @default("10.00") @db.Decimal(10, 2)
+  createdAt              DateTime      @default(now())
+  lastLoginAt            DateTime?
+
+  invitationsCreated     Invitation[]  @relation("invitedBy")
+  invitationConsumed     Invitation?   @relation("consumedBy")
+  auditLogs              AuditLog[]
+  apiKeys                ApiKey[]
+  refreshTokens          RefreshToken[]
+
+  @@map("users")
+}
+
+model Invitation {
+  id               String    @id @default(cuid())
+  invitedById      String
+  invitedBy        User      @relation("invitedBy", fields: [invitedById], references: [id], onDelete: Cascade)
+  email            String
+  tokenHash        String    @unique
+  expiresAt        DateTime
+  usedAt           DateTime?
+  consumedByUserId String?   @unique
+  consumedByUser   User?     @relation("consumedBy", fields: [consumedByUserId], references: [id])
+  createdAt        DateTime  @default(now())
+
+  @@index([email])
+  @@map("invitations")
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  tokenHash   String    @unique
+  scopes      String[]
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@map("api_keys")
+}
+
+model RefreshToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  userAgent  String?
+  ip         String?
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+enum AuditType {
+  ai_reply
+  rule_fired
+  decrypt
+  login
+  login_failed
+  logout
+  register
+  invite_create
+  invite_consume
+  setting_change
+  kill
+  pair
+  unpair
+}
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  userId     String?
+  user       User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type       AuditType
+  targetRef  String?
+  details    Bytes?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("audit_log")
+}

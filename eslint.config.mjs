@@ -13,6 +13,7 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/coverage/**",
       "**/*.generated.*",
+      "**/generated/**",
       "packages/web/dist/**",
       "website/**",
     ],
@@ -24,7 +25,11 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: {
-          allowDefaultProject: ["vitest.workspace.ts", "packages/shared/vitest.config.ts"],
+          allowDefaultProject: [
+            "vitest.workspace.ts",
+            "packages/shared/vitest.config.ts",
+            "packages/api/vitest.config.ts",
+          ],
           defaultProject: "tsconfig.base.json",
         },
         tsconfigRootDir: import.meta.dirname,
