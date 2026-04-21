@@ -28,15 +28,19 @@ ensure_var() {
   echo "${key}=${default}" >> "$ENV_FILE"
 }
 
-# Copy missing lines from template (without values)
-while IFS= read -r line; do
-  if [[ "$line" =~ ^[A-Z_]+= ]]; then
-    key="${line%%=*}"
-    grep -q "^${key}=" "$ENV_FILE" || echo "${key}=" >> "$ENV_FILE"
-  fi
-done < "$TEMPLATE"
+# Materialize only the keys this installer must own. Optional keys with Zod
+# defaults (NODE_ENV, LOG_LEVEL, ENTRYPOINT_ROLE, SENTRY_DSN, etc.) are left
+# ABSENT so @wpa/shared env parser's .default(...) fires — dotenv would treat
+# KEY= as empty string and fail the enum/URL validators.
+ensure_var MASTER_KEY         ""
+ensure_var JWT_SECRET         "$(gen_base64 48)"
+ensure_var POSTGRES_USER      "wpa"
+ensure_var POSTGRES_DB        "wpa"
+ensure_var POSTGRES_PASSWORD  "$(gen_base64 24)"
+ensure_var REDIS_PASSWORD     "$(gen_base64 24)"
+ensure_var PUBLIC_ORIGIN      "http://localhost:3000"
 
-# Fill secrets
+# Fill MASTER_KEY (must run AFTER ensure_var MASTER_KEY so the line exists)
 MASTER_KEY_VAL="$(grep '^MASTER_KEY=' "$ENV_FILE" | head -n1 | cut -d= -f2-)"
 if [[ -z "$MASTER_KEY_VAL" ]]; then
   NEW_KEY="$(gen_32bytes_b64)"
@@ -51,20 +55,16 @@ if [[ -z "$MASTER_KEY_VAL" ]]; then
   echo ""
 fi
 
-ensure_var JWT_SECRET         "$(gen_base64 48)"
-ensure_var POSTGRES_USER      "wpa"
-ensure_var POSTGRES_DB        "wpa"
-ensure_var POSTGRES_PASSWORD  "$(gen_base64 24)"
-ensure_var REDIS_PASSWORD     "$(gen_base64 24)"
-
-# Rebuild DATABASE_URL + REDIS_URL consistently
+# Rebuild DATABASE_URL + REDIS_URL consistently (delete-then-append so it
+# works whether or not the line already exists).
 PG_PW="$(grep '^POSTGRES_PASSWORD=' "$ENV_FILE" | head -n1 | cut -d= -f2-)"
 PG_USER="$(grep '^POSTGRES_USER=' "$ENV_FILE" | head -n1 | cut -d= -f2-)"
 PG_DB="$(grep '^POSTGRES_DB=' "$ENV_FILE" | head -n1 | cut -d= -f2-)"
 RD_PW="$(grep '^REDIS_PASSWORD=' "$ENV_FILE" | head -n1 | cut -d= -f2-)"
 
-sed -i.bak "s|^DATABASE_URL=.*|DATABASE_URL=postgresql://${PG_USER:-wpa}:${PG_PW}@postgres:5432/${PG_DB:-wpa}|" "$ENV_FILE" && rm -f "${ENV_FILE}.bak"
-sed -i.bak "s|^REDIS_URL=.*|REDIS_URL=redis://:${RD_PW}@redis:6379|" "$ENV_FILE" && rm -f "${ENV_FILE}.bak"
+sed -i.bak -e '/^DATABASE_URL=/d' -e '/^REDIS_URL=/d' "$ENV_FILE" && rm -f "${ENV_FILE}.bak"
+echo "DATABASE_URL=postgresql://${PG_USER:-wpa}:${PG_PW}@postgres:5432/${PG_DB:-wpa}" >> "$ENV_FILE"
+echo "REDIS_URL=redis://:${RD_PW}@redis:6379" >> "$ENV_FILE"
 
 chmod 600 "$ENV_FILE"
 echo ".env ready. Next: /wpa:start (or 'docker compose up -d')."
