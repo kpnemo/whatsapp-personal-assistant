@@ -1,3 +1,6 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import express, { type Express } from "express";
@@ -36,6 +39,13 @@ export function createApp(): Express {
 
   app.use("/api", authRouter());
   app.use("/api", invitationsRouter());
+
+  const webDist =
+    process.env.WEB_DIST ?? path.resolve(fileURLToPath(import.meta.url), "../../../web/dist");
+  app.use(express.static(webDist, { index: false }));
+  app.get(/^(?!\/api(\/|$)).*/, (_req, res) => {
+    res.sendFile(path.join(webDist, "index.html"));
+  });
 
   app.use((_req, res) => {
     res.status(404).json({ error: "not_found" });
