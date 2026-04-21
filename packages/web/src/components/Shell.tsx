@@ -2,6 +2,8 @@ import type { JSX, ReactNode } from "react";
 
 import { useAuth } from "../stores/auth";
 
+import { ThemeToggle } from "./theme-toggle";
+
 export function Shell({ children }: { children: ReactNode }): JSX.Element {
   const { me, logout } = useAuth();
   return (
@@ -12,6 +14,7 @@ export function Shell({ children }: { children: ReactNode }): JSX.Element {
           <span className="rounded-md bg-slate-800 px-2 py-0.5 text-xs text-slate-400">P0</span>
         </div>
         <div className="flex items-center gap-3">
+          <ThemeToggle />
           <button
             type="button"
             title="Emergency: mute assistant"
