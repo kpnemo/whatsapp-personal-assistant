@@ -342,40 +342,52 @@ time.sleep(5)
   seed_fake_repo "$TEST_TMP"
   cd "$TEST_TMP"
 
-  # Seed .env with a specific API_PORT that a "live" stack would be bound to.
-  cat >".env" <<'EOF'
+  # Pick an ephemeral-ish port that's unlikely to collide with anything else.
+  # We bind it first from Python (inside the helper) to keep the test hermetic.
+  local healthz_port
+  healthz_port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
+
+  # Seed .env with the chosen port so the script believes a stack is running there.
+  cat >".env" <<EOF
 MASTER_KEY=existingkey
 JWT_SECRET=existingsecret
 POSTGRES_PASSWORD=existingpg
 REDIS_PASSWORD=existingrd
-API_PORT=3456
-PUBLIC_ORIGIN=http://localhost:3456
+API_PORT=$healthz_port
+PUBLIC_ORIGIN=http://localhost:$healthz_port
 EOF
   chmod 600 ".env"
 
-  # Stand up a fake healthy server on 3456 that answers /healthz with HTTP 200.
-  python3 -c '
+  # Stand up a fake healthy server on $healthz_port that answers /healthz with
+  # HTTP 200. We write a marker file AFTER the server is actually listening to
+  # remove timing flakiness on slow hosts.
+  python3 -u -c "
 import http.server, socketserver, sys, threading, time
 
 class H(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path == "/healthz":
-            self.send_response(200); self.end_headers(); self.wfile.write(b"ok")
+        if self.path == '/healthz':
+            self.send_response(200); self.end_headers(); self.wfile.write(b'ok')
         else:
             self.send_response(404); self.end_headers()
     def log_message(self, *a, **kw): pass
 
-srv = socketserver.TCPServer(("127.0.0.1", 3456), H)
-sys.stdout.write("bound\n"); sys.stdout.flush()
+srv = socketserver.TCPServer(('127.0.0.1', $healthz_port), H)
 t = threading.Thread(target=srv.serve_forever); t.daemon = True; t.start()
-time.sleep(8)
+open('$TEST_TMP/server.ready', 'w').write('ready')
+time.sleep(10)
 srv.shutdown()
-' >"$TEST_TMP/server.out" 2>&1 &
+" >"$TEST_TMP/server.out" 2>&1 &
   local pid=$!
-  # Wait for it to bind
+
+  # Wait for server to be fully listening. First the ready-marker, then a
+  # real HTTP probe so we know curl will succeed when the script runs.
   local ready=0
-  for _ in $(seq 1 40); do
-    if grep -q bound "$TEST_TMP/server.out" 2>/dev/null; then ready=1; break; fi
+  for _ in $(seq 1 100); do
+    if [ -f "$TEST_TMP/server.ready" ] \
+       && curl -sSf -m 1 "http://127.0.0.1:$healthz_port/healthz" >/dev/null 2>&1; then
+      ready=1; break
+    fi
     sleep 0.1
   done
 
@@ -386,7 +398,7 @@ srv.shutdown()
   [ "$ready" = "1" ]  # sanity: the fake server really did bind
   assert_success
   # Stack-up detection message is present
-  assert_output --partial "existing stack detected on port 3456"
+  assert_output --partial "existing stack detected on port $healthz_port"
   # No first-run invocation (would say "missing — running scripts/first-run.sh")
   refute_output --partial "running scripts/first-run.sh"
   # No port selection ladder
