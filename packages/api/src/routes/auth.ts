@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { writeAudit } from "../audit/writeAudit.js";
 import { AuthError, login, registerUser, revokeRefresh, rotateRefresh } from "../auth/service.js";
-import { hashRefreshToken } from "../auth/tokens.js";
+import { hashRefreshToken, verifyAccessTokenForAudit } from "../auth/tokens.js";
 import { env } from "../env.js";
 import { type AuthedResponse, requireAuth } from "../middleware/auth.js";
 import { authRateLimiter } from "../middleware/ratelimit.js";
@@ -88,8 +88,20 @@ export function authRouter(): Router {
     const token = cookies?.[REFRESH_COOKIE];
     if (typeof token === "string") await revokeRefresh(token);
     res.clearCookie(REFRESH_COOKIE, { path: "/api/auth" });
-    const sub = res.locals.user?.sub;
-    if (sub) await writeAudit({ userId: sub, type: "logout" });
+
+    // Best-effort audit attribution: /auth/logout is public (no requireAuth),
+    // so res.locals.user is unset. Recover sub from the bearer if present,
+    // tolerating expired tokens (signature still verified). Log the event
+    // either way — null userId still tells us a logout attempt occurred.
+    let userId: string | undefined = res.locals.user?.sub;
+    if (!userId) {
+      const header = req.header("authorization");
+      if (header?.startsWith("Bearer ")) {
+        const claims = await verifyAccessTokenForAudit(header.slice("Bearer ".length));
+        userId = claims?.sub;
+      }
+    }
+    await writeAudit({ type: "logout", ...(userId ? { userId } : {}) });
     res.status(204).end();
   });
 

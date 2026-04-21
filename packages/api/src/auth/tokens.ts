@@ -32,6 +32,27 @@ export async function verifyAccessToken(token: string): Promise<AccessClaims & {
   return { sub: payload.sub, role: payload.role, exp: payload.exp ?? 0 };
 }
 
+/**
+ * Signature-verified but expiry-tolerant decode. Use ONLY for best-effort audit
+ * attribution (e.g. /auth/logout) where we still want to record the event even if
+ * the access token is past its 15-minute window. Never use for authorization.
+ */
+export async function verifyAccessTokenForAudit(token: string): Promise<AccessClaims | null> {
+  try {
+    const { payload } = await jwtVerify(token, jwtSecret, {
+      issuer: "wpa",
+      audience: "wpa-web",
+      clockTolerance: 60 * 60 * 24 * 365,
+    });
+    if (typeof payload.sub !== "string" || (payload.role !== "admin" && payload.role !== "user")) {
+      return null;
+    }
+    return { sub: payload.sub, role: payload.role };
+  } catch {
+    return null;
+  }
+}
+
 export function issueRefreshToken(): { token: string; tokenHash: string } {
   const token = randomBytes(48).toString("base64url");
   return { token, tokenHash: hashRefreshToken(token) };
