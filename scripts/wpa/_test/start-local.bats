@@ -333,3 +333,67 @@ time.sleep(5)
   assert_success
   assert_output --partial "custom@example.com"
 }
+
+# ============================================================================
+# Idempotency: pre-existing healthy stack short-circuits setup
+# ============================================================================
+
+@test "idempotent re-run: existing healthy stack on recorded port is reused" {
+  seed_fake_repo "$TEST_TMP"
+  cd "$TEST_TMP"
+
+  # Seed .env with a specific API_PORT that a "live" stack would be bound to.
+  cat >".env" <<'EOF'
+MASTER_KEY=existingkey
+JWT_SECRET=existingsecret
+POSTGRES_PASSWORD=existingpg
+REDIS_PASSWORD=existingrd
+API_PORT=3456
+PUBLIC_ORIGIN=http://localhost:3456
+EOF
+  chmod 600 ".env"
+
+  # Stand up a fake healthy server on 3456 that answers /healthz with HTTP 200.
+  python3 -c '
+import http.server, socketserver, sys, threading, time
+
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/healthz":
+            self.send_response(200); self.end_headers(); self.wfile.write(b"ok")
+        else:
+            self.send_response(404); self.end_headers()
+    def log_message(self, *a, **kw): pass
+
+srv = socketserver.TCPServer(("127.0.0.1", 3456), H)
+sys.stdout.write("bound\n"); sys.stdout.flush()
+t = threading.Thread(target=srv.serve_forever); t.daemon = True; t.start()
+time.sleep(8)
+srv.shutdown()
+' >"$TEST_TMP/server.out" 2>&1 &
+  local pid=$!
+  # Wait for it to bind
+  local ready=0
+  for _ in $(seq 1 40); do
+    if grep -q bound "$TEST_TMP/server.out" 2>/dev/null; then ready=1; break; fi
+    sleep 0.1
+  done
+
+  run bash "$SCRIPT" --dry-run
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+
+  [ "$ready" = "1" ]  # sanity: the fake server really did bind
+  assert_success
+  # Stack-up detection message is present
+  assert_output --partial "existing stack detected on port 3456"
+  # No first-run invocation (would say "missing — running scripts/first-run.sh")
+  refute_output --partial "running scripts/first-run.sh"
+  # No port selection ladder
+  refute_output --partial "selected port"
+  refute_output --partial "busy, trying next"
+  # No compose up intent
+  refute_output --partial "docker compose up"
+  # No admin registration
+  refute_output --partial "auth/register"
+}

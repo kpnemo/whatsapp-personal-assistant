@@ -44,6 +44,7 @@ SMOKE=0
 SKIP_ADMIN=0
 REQUESTED_PORT=""
 ADMIN_EMAIL="${WPA_ADMIN_EMAIL:-admin@local.wpa}"
+STACK_ALREADY_UP=0
 
 usage() {
   cat <<'USAGE'
@@ -148,6 +149,37 @@ step_preflight_docker() {
 
   log_error "docker daemon did not come up within 60s — please start it manually and retry."
   exit 1
+}
+
+# ---------------------------------------------------------------------------
+# Step 1b — Detect an already-running healthy stack.
+#   Idempotency guard: if .env records an API_PORT and /healthz on that port
+#   answers 200, reuse the existing stack instead of bootstrapping a second
+#   one on a different port (which would trip admin-registration 409s and
+#   stamp a new port over the running one).
+# ---------------------------------------------------------------------------
+step_detect_existing() {
+  STACK_ALREADY_UP=0
+  if [ ! -f "$WPA_WORK_DIR/.env" ]; then
+    return 0
+  fi
+
+  local existing_port
+  existing_port="$(read_env_var "$WPA_WORK_DIR/.env" API_PORT 2>/dev/null || true)"
+  if [ -z "$existing_port" ]; then
+    return 0
+  fi
+
+  # Probe the recorded port even in --dry-run — the probe has no side effects,
+  # and we need an accurate answer so dry-run output reflects what the real
+  # run would do. If no server is listening, curl fails fast and we proceed
+  # with the normal setup flow.
+  if curl -sSf -m 3 "http://localhost:$existing_port/healthz" >/dev/null 2>&1; then
+    API_PORT="$existing_port"
+    STACK_ALREADY_UP=1
+    log_info "existing stack detected on port $existing_port — reusing (skipping setup steps)"
+  fi
+  return 0
 }
 
 # ---------------------------------------------------------------------------
@@ -352,6 +384,24 @@ main() {
   WPA_WORK_DIR="$(pwd)"
 
   step_preflight_docker
+  step_detect_existing
+
+  if [ "$STACK_ALREADY_UP" = "1" ]; then
+    # Idempotent re-run: stack is already healthy on $API_PORT. Skip everything
+    # that would mutate the running instance (port pick, .env stamp, compose up,
+    # admin registration — user already exists, would 409) and go straight to
+    # the browser.
+    step_open_browser
+    if [ "$SMOKE" = "1" ]; then
+      log_info "smoke mode: existing stack is up at http://localhost:$API_PORT — exiting."
+    elif [ "$DRY_RUN" = "1" ]; then
+      log_info "dry-run complete. No side effects performed."
+    else
+      log_info "already up at http://localhost:$API_PORT — nothing to do."
+    fi
+    return 0
+  fi
+
   step_select_port
   step_ensure_env
   step_stamp_port
