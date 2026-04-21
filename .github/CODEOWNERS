@@ -1,0 +1,11 @@
+# Default: repo owner reviews everything.
+*                                 @<owner>
+
+# Sensitive areas — owner must review even if a general reviewer approved.
+.claude/                          @<owner>
+.github/                          @<owner>
+docs/VISION.md                    @<owner>
+docs/SECURITY.md                  @<owner>
+docs/superpowers/specs/**         @<owner>
+packages/shared/src/crypto.ts     @<owner>
+packages/api/src/auth/**          @<owner>

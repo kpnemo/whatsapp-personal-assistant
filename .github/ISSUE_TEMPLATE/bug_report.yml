@@ -1,0 +1,47 @@
+name: Bug report
+description: Something is broken.
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks for reporting. Never paste message bodies or tokens here."
+  - type: input
+    id: version
+    attributes:
+      label: Version (tag or commit SHA)
+    validations:
+      required: true
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: Deploy target
+      options:
+        - docker-compose local
+        - Railway
+        - Fly.io
+        - Render
+        - AWS Lightsail
+        - self-VPS
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs actual
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (redact aggressively)
