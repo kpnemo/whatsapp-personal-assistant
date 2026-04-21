@@ -563,6 +563,10 @@ whatsapp-personal-assistant/
 
 ## 11. Deferred / Open Items
 
+> **Resolved post-P0-ship:**
+>
+> - **Logout audit attribution** (task #27, fixed at `0aba662`). `/auth/logout` is public by design (so expired-access-token sessions can still log out cleanly); the original writeAudit call was dead code. Fixed via `verifyAccessTokenForAudit` in `packages/api/src/auth/tokens.ts` — signature-verified, expiry-tolerant decode for audit attribution only. Logout always writes the audit entry now, recovering `sub` from the bearer when available, `null` otherwise.
+
 - **License:** MIT default; confirm.
 - **Password reset:** email magic link — P3.
 - **Real-time transport:** SSE in P1; WebSocket upgrade path if bi-directional needed.

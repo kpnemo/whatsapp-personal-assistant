@@ -2102,7 +2102,21 @@ export function authRouter(): Router {
     const token: unknown = req.cookies?.[REFRESH_COOKIE];
     if (typeof token === "string") await revokeRefresh(token);
     res.clearCookie(REFRESH_COOKIE, { path: "/api/auth" });
-    if (res.locals.user?.sub) await writeAudit({ userId: res.locals.user.sub, type: "logout" });
+    // Best-effort audit attribution: /auth/logout is intentionally public so
+    // expired-access-token sessions can still log out cleanly. Recover sub
+    // from the bearer via verifyAccessTokenForAudit (signature-verified,
+    // expiry-tolerant). Always write the audit entry — null userId still
+    // records that a logout event occurred. See packages/api/src/auth/tokens.ts
+    // and task #27 for history.
+    let userId: string | undefined = res.locals.user?.sub;
+    if (!userId) {
+      const header = req.header("authorization");
+      if (header?.startsWith("Bearer ")) {
+        const claims = await verifyAccessTokenForAudit(header.slice("Bearer ".length));
+        userId = claims?.sub;
+      }
+    }
+    await writeAudit({ type: "logout", ...(userId ? { userId } : {}) });
     res.status(204).end();
   });
 
