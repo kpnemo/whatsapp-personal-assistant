@@ -52,6 +52,8 @@ if [[ -z "$MASTER_KEY_VAL" ]]; then
 fi
 
 ensure_var JWT_SECRET         "$(gen_base64 48)"
+ensure_var POSTGRES_USER      "wpa"
+ensure_var POSTGRES_DB        "wpa"
 ensure_var POSTGRES_PASSWORD  "$(gen_base64 24)"
 ensure_var REDIS_PASSWORD     "$(gen_base64 24)"
 
