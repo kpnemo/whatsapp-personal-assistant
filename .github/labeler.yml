@@ -1,0 +1,52 @@
+"area:api":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/api/**"
+
+"area:worker":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/worker/**"
+
+"area:agent":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/agent/**"
+
+"area:web":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/web/**"
+
+"area:db":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/db/**"
+          - "prisma/**"
+
+"area:claude":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".claude/**"
+
+"area:deploy":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "deploy/**"
+          - "Dockerfile"
+          - "docker-compose*.yml"
+          - "supervisord.conf"
+          - "supervisord/**"
+
+"area:docs":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "README.md"
+          - "website/**"
+          - "wiki/**"
+
+"area:ci":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/**"
