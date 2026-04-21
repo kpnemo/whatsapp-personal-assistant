@@ -1,0 +1,20 @@
+node_modules
+dist
+build
+.turbo
+coverage
+packages/web/dist
+pnpm-lock.yaml
+*.min.*
+website/.vitepress/cache
+website/.vitepress/dist
+.serena
+.remember
+.firecrawl
+.superpowers
+
+# Archival / author-voice content — formatted by owning teammates, not the baseline pass
+docs/superpowers
+docs/VISION.md
+CODE_OF_CONDUCT.md
+LICENSE
