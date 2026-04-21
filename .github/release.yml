@@ -1,0 +1,37 @@
+changelog:
+  exclude:
+    labels:
+      - dependencies
+      - skip-changelog
+    authors:
+      - dependabot
+      - dependabot[bot]
+  categories:
+    - title: "Breaking changes"
+      labels:
+        - breaking-change
+        - breaking
+    - title: "Security"
+      labels:
+        - security
+    - title: "Features"
+      labels:
+        - feat
+        - feature
+        - enhancement
+    - title: "Fixes"
+      labels:
+        - fix
+        - bug
+    - title: "Documentation"
+      labels:
+        - docs
+        - documentation
+    - title: "CI / build"
+      labels:
+        - ci
+        - build
+        - chore
+    - title: "Other changes"
+      labels:
+        - "*"
