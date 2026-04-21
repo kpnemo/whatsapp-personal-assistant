@@ -17,10 +17,15 @@ export class AuthError extends Error {
   }
 }
 
+export interface RequestMeta {
+  ip?: string | undefined;
+  userAgent?: string | undefined;
+}
+
 export async function login(
   email: string,
   password: string,
-  meta: { ip?: string; userAgent?: string },
+  meta: RequestMeta,
 ): Promise<{ accessToken: string; refreshToken: string; userId: string; role: "admin" | "user" }> {
   const prisma = getPrisma();
   const user = await prisma.user.findUnique({ where: { email } });
@@ -37,8 +42,8 @@ export async function login(
       userId: user.id,
       tokenHash: refresh.tokenHash,
       expiresAt,
-      ip: meta.ip,
-      userAgent: meta.userAgent,
+      ip: meta.ip ?? null,
+      userAgent: meta.userAgent ?? null,
     },
   });
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
@@ -48,7 +53,7 @@ export async function login(
 
 export async function rotateRefresh(
   oldToken: string,
-  meta: { ip?: string; userAgent?: string },
+  meta: RequestMeta,
 ): Promise<{ accessToken: string; refreshToken: string } | null> {
   const prisma = getPrisma();
   const tokenHash = hashRefreshToken(oldToken);
@@ -69,8 +74,8 @@ export async function rotateRefresh(
         userId: user.id,
         tokenHash: fresh.tokenHash,
         expiresAt,
-        ip: meta.ip,
-        userAgent: meta.userAgent,
+        ip: meta.ip ?? null,
+        userAgent: meta.userAgent ?? null,
       },
     }),
   ]);

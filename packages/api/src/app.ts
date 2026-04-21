@@ -6,6 +6,7 @@ import { pinoHttp } from "pino-http";
 
 import { env } from "./env.js";
 import { logger } from "./logger.js";
+import { authRouter } from "./routes/auth.js";
 
 export function createApp(): Express {
   const app = express();
@@ -31,6 +32,8 @@ export function createApp(): Express {
   app.get("/readyz", (_req, res) => {
     res.json({ status: "ok" });
   });
+
+  app.use("/api", authRouter());
 
   app.use((_req, res) => {
     res.status(404).json({ error: "not_found" });
