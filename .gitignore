@@ -43,3 +43,7 @@ packages/*/src/generated/
 .superpowers/
 .firecrawl/
 .remember/
+.serena/
+
+# Git worktrees (superpowers:using-git-worktrees)
+.worktrees/
