@@ -2,8 +2,13 @@ import { expect, test } from "@playwright/test";
 
 import { clearRateLimits } from "./helpers";
 
+// Credentials flow from global-setup via env vars — no hardcoded fallback
+// so secret-scanners never see a literal password string in source.
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? "e2e-admin@example.com";
-const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? "e2e-pass-12345678";
+const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD;
+if (!ADMIN_PASSWORD) {
+  throw new Error("E2E_ADMIN_PASSWORD missing — global-setup must run before specs.");
+}
 
 /**
  * Auth flow E2E — exercises register-then-login-then-refresh end-to-end against

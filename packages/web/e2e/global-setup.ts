@@ -22,9 +22,19 @@ export const E2E_COMPOSE_PROJECT = "wpa-e2e";
  */
 export const E2E_PORT = Number(process.env.E2E_PORT ?? 3100);
 
-/** Known admin credentials seeded by global-setup (consumed by the specs). */
+/**
+ * Admin credentials seeded by global-setup (consumed by the specs).
+ *
+ * - Email is stable (no secret).
+ * - Password is generated fresh per process via randomBytes so nothing
+ *   flagged by secret-scanners ever gets checked into git history.
+ *   Specs read it via process.env.E2E_ADMIN_PASSWORD; global-setup
+ *   exports it to the child Playwright worker via
+ *   `config.updateMetadata`/process.env (see writeE2EEnv usage below).
+ */
 export const E2E_ADMIN_EMAIL = "e2e-admin@example.com";
-export const E2E_ADMIN_PASSWORD = "e2e-pass-12345678";
+export const E2E_ADMIN_PASSWORD =
+  process.env.E2E_ADMIN_PASSWORD ?? randomBytes(18).toString("base64url");
 
 /** Resolve the repo root from this file's location: packages/web/e2e → ../../.. */
 const __dirname = dirname(fileURLToPath(import.meta.url));
