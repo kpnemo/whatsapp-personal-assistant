@@ -1,3 +1,5 @@
+import { downloadMediaMessage } from "@whiskeysockets/baileys";
+import type { WAMessage } from "@whiskeysockets/baileys";
 import { getPrisma, type PrismaClient } from "@wpa/db";
 import {
   encryptWithKey,
@@ -10,7 +12,13 @@ import { Redis } from "ioredis";
 import { pino, type Logger } from "pino";
 
 import { env } from "./env.js";
-import { startConsumer, subscribe, type ConsumerHandle } from "./ingest/index.js";
+import {
+  startConsumer,
+  subscribe,
+  type ConsumerHandle,
+  MediaDownloader,
+  makeLocalDiskMediaStore,
+} from "./ingest/index.js";
 import { makeAuthStore } from "./pair/authStore.js";
 import type { SocketHandle } from "./pair/baileys.js";
 import { startPairWorker } from "./pair/index.js";
@@ -72,6 +80,32 @@ async function main(): Promise<void> {
   const snapshotter: SnapshotScheduler = makeSnapshotScheduler(prisma, authStore, logger);
   const audit = makeWorkerAudit(prisma, env.MASTER_KEY_BYTES, logger);
 
+  // Socket registry: keyed by userId so enqueueMedia adapters can look up the
+  // live WASocket to call downloadMediaMessage on the raw Baileys message.
+  const socketRegistry = new Map<string, SocketHandle["sock"]>();
+
+  // Media downloader — shared singleton across all users.
+  const mediaStore = makeLocalDiskMediaStore(env.MEDIA_DIR);
+  const mediaDownloader = new MediaDownloader({
+    mediaStore,
+    redis,
+    getPrisma: () => prisma,
+    logger,
+    perUserConcurrency: env.MEDIA_CONCURRENCY_USER,
+    globalConcurrency: env.MEDIA_CONCURRENCY_GLOBAL,
+    maxBytes: env.MEDIA_MAX_BYTES,
+    queuePerUserMax: 100,
+    audit: (userId, subtype, details) =>
+      writeAudit({
+        prisma,
+        masterKey: env.MASTER_KEY_BYTES,
+        userId,
+        type: "ingest",
+        details: details ? { subtype, ...details } : { subtype },
+        logger,
+      }),
+  });
+
   // Track per-user ingest teardown handles.
   const ingestUnsubscribers = new Map<string, () => void>();
   const ingestConsumers = new Map<string, ConsumerHandle>();
@@ -93,6 +127,9 @@ async function main(): Promise<void> {
       const wrapped = parseCiphertext(Buffer.from(user.encryptedDek).toString("utf8"));
       const dek = unwrapDek(env.MASTER_KEY_BYTES, wrapped);
 
+      // Register the socket so the enqueueMedia adapter can call downloadMediaMessage.
+      socketRegistry.set(userId, handle.sock);
+
       const { unsubscribe } = subscribe(userId, handle.sock, redis, logger);
       ingestUnsubscribers.set(userId, unsubscribe);
 
@@ -103,11 +140,29 @@ async function main(): Promise<void> {
         dek,
         masterKey: env.MASTER_KEY_BYTES,
         logger,
+        // Adapter: consume.ts threads the raw WAMessage alongside the normalized
+        // input so we can call Baileys' downloadMediaMessage here.
+        enqueueMedia: (input) => {
+          const sock = socketRegistry.get(userId);
+          if (!sock) {
+            logger.warn({ userId }, "enqueueMedia: no socket registered for user; skipping");
+            return;
+          }
+          const rawMsg: WAMessage = input.raw;
+          mediaDownloader.enqueue({
+            userId,
+            messageId: input.messageId,
+            dek,
+            mimeType: input.normalized.body.mediaMeta?.mimeType,
+            download: () => downloadMediaMessage(rawMsg, "buffer", {}),
+          });
+        },
       });
       ingestConsumers.set(userId, consumer);
     } catch (err) {
       // Partial-start cleanup — prevents subsequent onSocketReady from hitting the guard
       // with a dangling unsubscriber that has no consumer behind it.
+      socketRegistry.delete(userId);
       ingestUnsubscribers.get(userId)?.();
       ingestUnsubscribers.delete(userId);
       ingestConsumers.get(userId)?.stop();
@@ -117,6 +172,7 @@ async function main(): Promise<void> {
   }
 
   function stopIngest(userId: string): void {
+    socketRegistry.delete(userId);
     const unsub = ingestUnsubscribers.get(userId);
     if (unsub) {
       unsub();
@@ -261,7 +317,9 @@ async function main(): Promise<void> {
   }
 
   const stopPair = await startPairWorker({ redis, pairMachine, logger });
-  logger.info("worker started (pair flow + encrypted persistence ready; P1-A PA3)");
+  logger.info(
+    "worker started (pair flow + encrypted persistence + media download ready; P1-B IB4)",
+  );
 
   const shutdown = async (): Promise<void> => {
     if (!running) return;
@@ -273,6 +331,12 @@ async function main(): Promise<void> {
     }
     // Wait for in-flight consumer loops to exit.
     await Promise.allSettled(Array.from(ingestConsumers.values()).map((c) => c.done));
+    // Drain media downloader (in-flight downloads complete; queued jobs dropped).
+    try {
+      await mediaDownloader.stop();
+    } catch (err) {
+      logger.warn({ err }, "mediaDownloader.stop failed during shutdown");
+    }
     try {
       await snapshotter.shutdown();
     } catch (err) {

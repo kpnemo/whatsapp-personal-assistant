@@ -53,6 +53,7 @@ RUN chmod +x /usr/local/bin/entrypoint-migrate.sh
 RUN addgroup -S wpa && adduser -S wpa -G wpa \
  && chown -R wpa:wpa /app
 
+VOLUME /app/media
 USER wpa
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \

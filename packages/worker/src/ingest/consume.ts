@@ -1,5 +1,6 @@
 import { hostname } from "node:os";
 
+import type { WAMessage } from "@whiskeysockets/baileys";
 import type { PrismaClient } from "@wpa/db";
 import type { AuditPrismaClient as _AuditPrismaClient } from "@wpa/shared";
 import type { Redis } from "ioredis";
@@ -41,6 +42,8 @@ export interface StartConsumerOpts {
     messageId: string;
     userId: string;
     normalized: NormalizedMessage;
+    /** Raw Baileys WAMessage — used by the media downloader to call downloadMediaMessage. */
+    raw: WAMessage;
   }) => void;
 }
 
@@ -133,9 +136,22 @@ export async function startConsumer(opts: StartConsumerOpts): Promise<ConsumerHa
           try {
             const rawMsg = JSON.parse(rawJson) as Parameters<typeof normalize>[0];
             const normalized = normalize(rawMsg);
+            // Build a closure-based enqueueMedia that captures the raw WAMessage
+            // so the media downloader can call downloadMediaMessage on it.
             const persistDeps =
               opts.enqueueMedia !== undefined
-                ? { prisma, dek, redis, enqueueMedia: opts.enqueueMedia }
+                ? {
+                    prisma,
+                    dek,
+                    redis,
+                    enqueueMedia: (input: {
+                      messageId: string;
+                      userId: string;
+                      normalized: NormalizedMessage;
+                    }) => {
+                      opts.enqueueMedia!({ ...input, raw: rawMsg });
+                    },
+                  }
                 : { prisma, dek, redis };
             await persist(userId, normalized, persistDeps);
             // Clean up any retry counter for this entry (handles retry-then-success path).
