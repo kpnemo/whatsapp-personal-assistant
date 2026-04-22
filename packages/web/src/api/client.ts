@@ -133,8 +133,15 @@ export function parseRateLimitRetryAfter(err: ApiError): number | null {
   return null;
 }
 
+export interface PairQrResponse {
+  qrPng: string; // base64-encoded PNG
+}
+
 export const pair = {
   init: () => postJson<PairInitResponse>("/pair/init", {}),
   status: () => apiFetch<PairStatusResponse>("/pair/status"),
-  qrUrl: (): string => `/api/pair/qr?t=${String(Date.now())}`,
+  // Fetches the current QR as JSON via the authenticated apiFetch pathway
+  // (bearer token attached). Browsers cannot send Authorization headers on
+  // `<img src="...">` requests, so we must fetch + render as a data URL.
+  qr: () => apiFetch<PairQrResponse>("/pair/qr"),
 };

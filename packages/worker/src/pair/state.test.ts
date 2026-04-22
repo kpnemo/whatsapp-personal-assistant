@@ -26,9 +26,19 @@ function makeFakeSocket(initialCreds: AuthenticationCreds = makeFakeCreds()): Fa
   let onUpdate: ((update: Partial<ConnectionState>) => void) | null = null;
   const dispose = vi.fn(() => Promise.resolve());
   const creds = { ...initialCreds } as AuthenticationCreds;
+  // Minimal SignalKeyStore stub — PA2 tests never call keys.get/set; only the
+  // 515-reconnect path reads `.keys` as an opaque reference to hand back to
+  // the next makeSocket call.
+  const keys = {
+    get: () => ({}),
+    set: () => {
+      /* no-op */
+    },
+  } as unknown as SocketHandle["keys"];
   const handle: SocketHandle = {
     userId: "", // overwritten when bound
     creds,
+    keys,
     dispose,
   };
   const emit = (update: Partial<ConnectionState>): void => {

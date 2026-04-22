@@ -284,32 +284,25 @@ describe("pair routes — /api/pair/{init,status,qr}", () => {
     expect(res.body).toEqual({ error: "no_qr_available" });
   });
 
-  it("GET /api/pair/qr returns binary PNG with no-store Cache-Control when cached", async () => {
+  it("GET /api/pair/qr returns base64 JSON with no-store Cache-Control when cached", async () => {
     const user = await seedUser(db.prisma, {
       email: "pair-qr-present@example.com",
       role: "user",
       password: "correct-horse-battery-staple",
     });
-    // 8-byte PNG signature is enough to assert binary round-trip without a real encoder.
+    // We return JSON (not binary image/png) so the SPA can attach the bearer
+    // token via fetch() — browsers won't attach Authorization headers to
+    // <img src="..."> requests. The SPA renders <img src="data:image/png;base64,...">.
     const pngBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-    await redis.client.set(`wpa:pair:${user.id}:qr`, pngBytes.toString("base64"), "EX", 30);
+    const base64 = pngBytes.toString("base64");
+    await redis.client.set(`wpa:pair:${user.id}:qr`, base64, "EX", 30);
 
     const agent = await withAuth(app, { user: { id: user.id, role: "user" } });
-    const res = await agent
-      .get("/api/pair/qr")
-      .buffer(true)
-      .parse((response, cb) => {
-        const chunks: Buffer[] = [];
-        response.on("data", (c: Buffer) => chunks.push(c));
-        response.on("end", () => {
-          cb(null, Buffer.concat(chunks));
-        });
-      });
+    const res = await agent.get("/api/pair/qr");
     expect(res.status).toBe(200);
-    expect(res.headers["content-type"]).toContain("image/png");
+    expect(res.headers["content-type"]).toContain("application/json");
     expect(res.headers["cache-control"]).toContain("no-store");
-    expect(Buffer.isBuffer(res.body)).toBe(true);
-    expect((res.body as Buffer).equals(pngBytes)).toBe(true);
+    expect(res.body).toEqual({ qrPng: base64 });
   });
 
   // -------- origin-guard defence-in-depth --------

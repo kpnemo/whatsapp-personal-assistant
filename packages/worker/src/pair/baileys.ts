@@ -13,14 +13,17 @@ import makeWASocket, {
 import type { Logger } from "pino";
 
 /**
- * Handle returned from `makeSocket`. `creds` is a live reference into the
- * socket's `authState.creds` so callers (the PairMachine) can read the phone
- * number once Baileys writes `creds.me`. `dispose` closes the underlying
- * websocket gracefully.
+ * Handle returned from `makeSocket`. `creds` and `keys` are live references
+ * into the socket's `authState` so callers (the PairMachine) can:
+ *   - read the phone number once Baileys writes `creds.me`
+ *   - reuse the full auth state on a 515 reconnect (WhatsApp asks us to
+ *     close + reopen the socket after the QR scan; see state.ts).
+ * `dispose` closes the underlying websocket gracefully.
  */
 export interface SocketHandle {
   userId: string;
   creds: AuthenticationCreds;
+  keys: SignalKeyStore;
   dispose: () => Promise<void>;
 }
 
@@ -124,6 +127,7 @@ export async function makeSocket(opts: MakeSocketOpts): Promise<SocketHandle> {
   return {
     userId,
     creds,
+    keys,
     dispose: async () => {
       try {
         await sock.ws.close();

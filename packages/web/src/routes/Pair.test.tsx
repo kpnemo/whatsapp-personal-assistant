@@ -75,10 +75,15 @@ interface MockRoutes {
   init?: { status: number; body: unknown; headers?: Record<string, string> };
   status?: { state: string; phoneNumber?: string | null };
   statusSequence?: { state: string; phoneNumber?: string | null }[];
+  qr?: { status?: number; qrPng?: string };
 }
 
-function installFetchMock(routes: MockRoutes): { statusCalls: number; initCalls: number } {
-  const counters = { statusCalls: 0, initCalls: 0 };
+function installFetchMock(routes: MockRoutes): {
+  statusCalls: number;
+  initCalls: number;
+  qrCalls: number;
+} {
+  const counters = { statusCalls: 0, initCalls: 0, qrCalls: 0 };
   let statusIndex = 0;
 
   fetchMock.mockImplementation((input, init) => {
@@ -115,6 +120,27 @@ function installFetchMock(routes: MockRoutes): { statusCalls: number; initCalls:
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         ),
+      );
+    }
+
+    if (url === "/api/pair/qr" && method === "GET") {
+      counters.qrCalls += 1;
+      // Default to a tiny fake PNG base64 (8-byte PNG signature).
+      const defaultPng = "iVBORw0KGgo=";
+      const status = routes.qr?.status ?? 200;
+      if (status === 404) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ error: "no_qr_available" }), {
+            status: 404,
+            headers: { "content-type": "application/json" },
+          }),
+        );
+      }
+      return Promise.resolve(
+        new Response(JSON.stringify({ qrPng: routes.qr?.qrPng ?? defaultPng }), {
+          status,
+          headers: { "content-type": "application/json" },
+        }),
       );
     }
 
@@ -171,10 +197,11 @@ describe("Pair page", () => {
     expect(screen.getByText(/preparing qr code/i)).toBeInTheDocument();
   });
 
-  it("renders the QR image when /status reports awaiting_scan", async () => {
+  it("renders the QR image as a data URL when /status reports awaiting_scan", async () => {
     installFetchMock({
       init: { status: 201, body: { sessionId: "sess-xyz" } },
       status: { state: "awaiting_scan" },
+      qr: { qrPng: "iVBORw0KGgo=" },
     });
     renderPair();
     const user = userEvent.setup();
@@ -182,7 +209,8 @@ describe("Pair page", () => {
 
     const qr = await screen.findByTestId<HTMLImageElement>("pair-qr");
     expect(qr).toBeInstanceOf(HTMLImageElement);
-    expect(qr.src).toMatch(/\/api\/pair\/qr\?t=\d+/);
+    // Data URL — bearer-auth-safe way to render a protected image.
+    expect(qr.src).toBe("data:image/png;base64,iVBORw0KGgo=");
     expect(screen.getByText(/open whatsapp on your phone/i)).toBeInTheDocument();
     expect(screen.getByText(/link a device/i)).toBeInTheDocument();
   });
@@ -309,12 +337,47 @@ describe("Pair page", () => {
     expect(screen.getByRole("button", { name: /retry/i })).toBeEnabled();
   });
 
-  it("QR src includes a cache-busting timestamp that changes across refreshes", async () => {
+  it("refetches the QR PNG via authenticated apiFetch every QR_REFRESH_MS", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    installFetchMock({
-      init: { status: 201, body: { sessionId: "sess-xyz" } },
-      status: { state: "awaiting_scan" },
+    // Two different QR payloads so we can verify the `<img src>` updates
+    // when the new polling fetch resolves.
+    let qrCall = 0;
+    fetchMock.mockImplementation((input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? "GET";
+      if (url === "/api/pair/init" && method === "POST") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ sessionId: "sess-xyz" }), {
+            status: 201,
+            headers: { "content-type": "application/json" },
+          }),
+        );
+      }
+      if (url === "/api/pair/status" && method === "GET") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              state: "awaiting_scan",
+              sessionId: "sess-xyz",
+              phoneNumber: null,
+              updatedAt: new Date().toISOString(),
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        );
+      }
+      if (url === "/api/pair/qr" && method === "GET") {
+        qrCall += 1;
+        return Promise.resolve(
+          new Response(JSON.stringify({ qrPng: `QRv${qrCall}` }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        );
+      }
+      return Promise.resolve(new Response("nf", { status: 404 }));
     });
+
     renderPair();
     const user = userEvent.setup({
       advanceTimers: (ms) => {
@@ -325,16 +388,17 @@ describe("Pair page", () => {
 
     const qr = await screen.findByTestId<HTMLImageElement>("pair-qr");
     const firstSrc = qr.src;
+    expect(firstSrc).toBe("data:image/png;base64,QRv1");
 
     act(() => {
-      // QR refresh interval is 5s — one tick is enough.
+      // QR refetch interval is 5s — one tick is enough to trigger a new fetch.
       vi.advanceTimersByTime(5_500);
     });
 
     await waitFor(() => {
       const next = screen.getByTestId<HTMLImageElement>("pair-qr").src;
       expect(next).not.toBe(firstSrc);
-      expect(next).toMatch(/\/api\/pair\/qr\?t=\d+/);
+      expect(next).toBe("data:image/png;base64,QRv2");
     });
   });
 });

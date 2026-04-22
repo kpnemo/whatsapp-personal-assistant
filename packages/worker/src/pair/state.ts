@@ -1,3 +1,4 @@
+import { DisconnectReason } from "@whiskeysockets/baileys";
 import type {
   AuthenticationCreds,
   AuthenticationState,
@@ -7,6 +8,23 @@ import { pino, type Logger } from "pino";
 import qrcode from "qrcode";
 
 import { makeSocket, type SocketHandle } from "./baileys.js";
+
+/**
+ * Extract the Boom statusCode from a Baileys disconnect error, if any. Baileys
+ * surfaces stream errors by wrapping them in `@hapi/boom` Errors whose
+ * `.output.statusCode` matches `DisconnectReason`. We need the number (not the
+ * Boom instance) because the test suite uses plain `Error` subclasses for
+ * brevity.
+ */
+function disconnectStatusCode(err: unknown): number | null {
+  if (err && typeof err === "object" && "output" in err) {
+    const output = (err as { output?: { statusCode?: unknown } }).output;
+    if (output && typeof output === "object" && typeof output.statusCode === "number") {
+      return output.statusCode;
+    }
+  }
+  return null;
+}
 
 /**
  * Pair state machine — drives a user's WhatsApp pair flow end-to-end.
@@ -242,14 +260,75 @@ export class PairMachine {
         );
         return;
       }
-      // Was mid-pair (generating | awaiting_scan) — unrecoverable for PA2.
-      const err =
-        update.lastDisconnect?.error ?? new Error("baileys connection closed during pair");
+
+      const disconnectErr = update.lastDisconnect?.error;
+      const statusCode = disconnectStatusCode(disconnectErr);
+
+      // 515 "restart required" is EXPECTED right after a successful QR scan.
+      // WhatsApp's protocol tells the client to close + reopen with the freshly
+      // received credentials — only then is the device truly paired.
+      // We reconnect using the live creds+keys from the current socket handle
+      // and keep the UI in `awaiting_scan` until the new socket reports `open`.
+      if (
+        statusCode === DisconnectReason.restartRequired &&
+        machine.socket &&
+        (prevState === "awaiting_scan" || prevState === "generating")
+      ) {
+        this.childLogger(userId).info(
+          { prevState },
+          "baileys requested restart (515) after pair — reconnecting with stored creds",
+        );
+        const freshAuthState: AuthenticationState = {
+          creds: machine.socket.creds,
+          keys: machine.socket.keys,
+        };
+        const oldSocket = machine.socket;
+        machine.socket = null;
+        // fire-and-forget dispose of the old socket — we already hold the live
+        // creds/keys refs. Failures just leak a websocket.
+        void oldSocket.dispose().catch((err: unknown) => {
+          this.childLogger(userId).warn({ err }, "old socket dispose failed after 515");
+        });
+        void this.reopenSocket(userId, freshAuthState);
+        return;
+      }
+
+      // Any other close mid-pair is unrecoverable for P1-A.
+      const err = disconnectErr ?? new Error("baileys connection closed during pair");
       this.transition(userId, "error");
       if (machine.timer) {
         clearTimeout(machine.timer);
         machine.timer = null;
       }
+      this.events.onError(userId, err instanceof Error ? err : new Error(String(err)));
+    }
+  }
+
+  /**
+   * Reopen the Baileys socket after a 515 "restart required". Keeps the user
+   * in `awaiting_scan` until the new socket fires `connection: open`.
+   */
+  private async reopenSocket(userId: string, authState: AuthenticationState): Promise<void> {
+    const log = this.childLogger(userId);
+    try {
+      const handle = await this.socketFactory({
+        userId,
+        authState,
+        onUpdate: (update) => {
+          this.handleUpdate(userId, update);
+        },
+        onCredsUpdate: (creds) => {
+          this.events.onCredsUpdate?.(userId, creds);
+        },
+        logger: log,
+      });
+      const machine = this.machines.get(userId);
+      if (machine) {
+        machine.socket = handle;
+      }
+    } catch (err) {
+      log.error({ err }, "reopenSocket failed after 515 restart request");
+      this.transition(userId, "error");
       this.events.onError(userId, err instanceof Error ? err : new Error(String(err)));
     }
   }

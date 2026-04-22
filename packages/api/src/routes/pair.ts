@@ -145,12 +145,13 @@ export function pairRouter(): Router {
       res.status(404).json({ error: "no_qr_available" });
       return;
     }
-    // Worker stores the QR as a base64 string; decode + serve binary so the
-    // browser can render it via <img src="/api/pair/qr">.
-    const buf = Buffer.from(png, "base64");
-    res.setHeader("Content-Type", "image/png");
+    // Return base64 JSON (not binary image/png) so the SPA can request it with
+    // an `Authorization: Bearer <jwt>` header via `fetch()`. Browsers do not
+    // attach the Authorization header to `<img src="...">` requests (only
+    // cookies), so the previous binary response 401'd for the logged-in UI.
+    // The SPA renders `<img src="data:image/png;base64,...">` from this payload.
     res.setHeader("Cache-Control", "no-store");
-    res.status(200).send(buf);
+    res.status(200).json({ qrPng: png });
   });
 
   return r;

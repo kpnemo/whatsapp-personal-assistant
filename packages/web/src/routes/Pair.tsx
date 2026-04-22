@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Check, Loader2, Shield, Smartphone } from "lucide-react";
-import { type JSX, useEffect, useMemo, useState } from "react";
+import { type JSX, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
 
@@ -100,7 +100,6 @@ function formatCountdown(remainingSeconds: number): string {
 
 export function Pair(): JSX.Element {
   const [uiState, setUiState] = useState<UiState>("tos_gate");
-  const [qrTick, setQrTick] = useState<number>(() => Date.now());
   const [retryAfterSeconds, setRetryAfterSeconds] = useState<number>(0);
   const [disconnectOpen, setDisconnectOpen] = useState<boolean>(false);
   const navigate = useNavigate();
@@ -129,16 +128,21 @@ export function Pair(): JSX.Element {
     if (next !== uiState) setUiState(next);
   }, [statusQuery.data, uiState]);
 
-  // ---- QR cache-busting refresh while awaiting_scan --------------------------------
-  useEffect(() => {
-    if (uiState !== "awaiting_scan") return;
-    const id = setInterval(() => {
-      setQrTick(Date.now());
-    }, QR_REFRESH_MS);
-    return () => {
-      clearInterval(id);
-    };
-  }, [uiState]);
+  // ---- QR polling (fetch JSON via authenticated apiFetch, render as data URL) ------
+  //
+  // We can't use `<img src="/api/pair/qr">` because browsers don't attach the
+  // bearer token to image requests. Instead, useQuery refetches the QR PNG as
+  // base64 JSON at QR_REFRESH_MS intervals and we render it with a data URL.
+  const qrQuery = useQuery({
+    queryKey: ["pair-qr"],
+    queryFn: () => pair.qr(),
+    refetchInterval: uiState === "awaiting_scan" ? QR_REFRESH_MS : false,
+    enabled: uiState === "awaiting_scan",
+    retry: false,
+  });
+  const qrDataUrl: string | null = qrQuery.data
+    ? `data:image/png;base64,${qrQuery.data.qrPng}`
+    : null;
 
   // ---- Rate-limit countdown --------------------------------------------------------
   useEffect(() => {
@@ -195,7 +199,6 @@ export function Pair(): JSX.Element {
     initMutation.reset();
   }
 
-  const qrUrl = useMemo(() => `/api/pair/qr?t=${String(qrTick)}`, [qrTick]);
   const phoneNumber = statusQuery.data?.phoneNumber ?? null;
 
   return (
@@ -212,7 +215,7 @@ export function Pair(): JSX.Element {
         </CardHeader>
         {renderBody({
           uiState,
-          qrUrl,
+          qrDataUrl,
           phoneNumber,
           retryAfterSeconds,
           isInitPending: initMutation.isPending,
@@ -256,7 +259,7 @@ export function Pair(): JSX.Element {
 
 interface BodyProps {
   uiState: UiState;
-  qrUrl: string;
+  qrDataUrl: string | null;
   phoneNumber: string | null;
   retryAfterSeconds: number;
   isInitPending: boolean;
@@ -274,7 +277,7 @@ function renderBody(props: BodyProps): JSX.Element {
     case "generating":
       return <Generating />;
     case "awaiting_scan":
-      return <AwaitingScan qrUrl={props.qrUrl} />;
+      return <AwaitingScan qrDataUrl={props.qrDataUrl} />;
     case "paired":
       return (
         <Paired
@@ -355,15 +358,25 @@ function Generating(): JSX.Element {
   );
 }
 
-function AwaitingScan({ qrUrl }: { qrUrl: string }): JSX.Element {
+function AwaitingScan({ qrDataUrl }: { qrDataUrl: string | null }): JSX.Element {
   return (
     <CardContent className="flex flex-col items-center gap-5">
-      <img
-        src={qrUrl}
-        alt="Scan this QR code with WhatsApp"
-        className="size-64 max-w-80 rounded-md border border-border bg-card"
-        data-testid="pair-qr"
-      />
+      {qrDataUrl ? (
+        <img
+          src={qrDataUrl}
+          alt="Scan this QR code with WhatsApp"
+          className="size-64 max-w-80 rounded-md border border-border bg-card"
+          data-testid="pair-qr"
+        />
+      ) : (
+        <div
+          className="flex size-64 max-w-80 flex-col items-center justify-center gap-2 rounded-md border border-border bg-card text-sm text-muted-foreground"
+          data-testid="pair-qr-loading"
+        >
+          <Loader2 className="size-6 animate-spin" aria-hidden="true" />
+          <span>Loading QR…</span>
+        </div>
+      )}
       <ol className="w-full list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
         <li>Open WhatsApp on your phone.</li>
         <li>Tap Settings → Linked Devices → Link a device.</li>
