@@ -205,7 +205,7 @@ describe("normalize", () => {
             destinationJid: "peer@s.whatsapp.net",
             message: { conversation: "sent from my phone" },
           },
-        } as unknown as WAMessage["message"],
+        } as unknown as NonNullable<WAMessage["message"]>,
       }),
     );
     expect(result.direction).toBe("out");
@@ -227,7 +227,7 @@ describe("normalize", () => {
               },
             },
           },
-        } as unknown as WAMessage["message"],
+        } as unknown as NonNullable<WAMessage["message"]>,
       }),
     );
     expect(result.body.kind).toBe("text");
@@ -242,7 +242,7 @@ describe("normalize", () => {
           ephemeralMessage: {
             message: { conversation: "disappearing hi" },
           },
-        } as unknown as WAMessage["message"],
+        } as unknown as NonNullable<WAMessage["message"]>,
       }),
     );
     expect(result.body.kind).toBe("text");
@@ -258,7 +258,7 @@ describe("normalize", () => {
               imageMessage: { mimetype: "image/jpeg", caption: "only once" },
             },
           },
-        } as unknown as WAMessage["message"],
+        } as unknown as NonNullable<WAMessage["message"]>,
       }),
     );
     expect(result.body.kind).toBe("image");
@@ -279,7 +279,7 @@ describe("normalize", () => {
               },
             },
           },
-        } as unknown as WAMessage["message"],
+        } as unknown as NonNullable<WAMessage["message"]>,
       }),
     );
     expect(result.direction).toBe("out");

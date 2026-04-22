@@ -93,7 +93,7 @@ describe("shouldIngest", () => {
         protocolMessage: {
           type: 6 /* APP_STATE_SYNC_KEY_SHARE */ as never,
         },
-      } as unknown as WAMessage["message"],
+      } as unknown as NonNullable<WAMessage["message"]>,
     });
     expect(shouldIngest(msg)).toBe(false);
   });
@@ -106,7 +106,7 @@ describe("shouldIngest", () => {
           type: 5 /* HISTORY_SYNC_NOTIFICATION */ as never,
           historySyncNotification: { fileLength: "1000" } as never,
         },
-      } as unknown as WAMessage["message"],
+      } as unknown as NonNullable<WAMessage["message"]>,
     });
     expect(shouldIngest(msg)).toBe(false);
   });
@@ -119,7 +119,7 @@ describe("shouldIngest", () => {
           groupId: "grp-1@g.us",
           axolotlSenderKeyDistributionMessage: Buffer.from([1, 2, 3]) as never,
         },
-      } as unknown as WAMessage["message"],
+      } as unknown as NonNullable<WAMessage["message"]>,
     });
     expect(shouldIngest(msg)).toBe(false);
   });
@@ -128,7 +128,7 @@ describe("shouldIngest", () => {
     const msg = makeMsg({
       message: {
         messageContextInfo: { deviceListMetadataVersion: 2 } as never,
-      } as unknown as WAMessage["message"],
+      } as unknown as NonNullable<WAMessage["message"]>,
     });
     expect(shouldIngest(msg)).toBe(false);
   });
@@ -143,7 +143,7 @@ describe("shouldIngest", () => {
           groupId: "grp-1@g.us",
         } as never,
         conversation: "hello group",
-      } as unknown as WAMessage["message"],
+      } as unknown as NonNullable<WAMessage["message"]>,
     });
     expect(shouldIngest(msg)).toBe(true);
   });
@@ -156,7 +156,7 @@ describe("shouldIngest", () => {
           destinationJid: "peer@s.whatsapp.net",
           message: { conversation: "sent from my phone" },
         } as never,
-      } as unknown as WAMessage["message"],
+      } as unknown as NonNullable<WAMessage["message"]>,
     });
     expect(shouldIngest(msg)).toBe(true);
   });
