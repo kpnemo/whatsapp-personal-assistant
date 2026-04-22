@@ -19,11 +19,15 @@ import type { Logger } from "pino";
  *   - reuse the full auth state on a 515 reconnect (WhatsApp asks us to
  *     close + reopen the socket after the QR scan; see state.ts).
  * `dispose` closes the underlying websocket gracefully.
+ * `sock` is the raw Baileys WASocket — exposed so callers (e.g. the ingest
+ * subscriber) can attach additional event listeners (messages.upsert etc.)
+ * without needing their own socket factory.
  */
 export interface SocketHandle {
   userId: string;
   creds: AuthenticationCreds;
   keys: SignalKeyStore;
+  sock: ReturnType<typeof makeWASocket>;
   dispose: () => Promise<void>;
 }
 
@@ -128,6 +132,7 @@ export async function makeSocket(opts: MakeSocketOpts): Promise<SocketHandle> {
     userId,
     creds,
     keys,
+    sock,
     dispose: async () => {
       try {
         await sock.ws.close();

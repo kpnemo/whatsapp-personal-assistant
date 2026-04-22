@@ -49,6 +49,12 @@ export interface PairMachineEvents {
    * persistence. PA2 callers typically supply a no-op.
    */
   onCredsUpdate?: (userId: string, creds: AuthenticationCreds) => void;
+  /**
+   * Fired when a Baileys socket is ready (connected or restored). Callers
+   * (e.g. the ingest subscriber — IB3) use this to attach event listeners
+   * such as `messages.upsert` to the live socket.
+   */
+  onSocketReady?: (userId: string, handle: SocketHandle) => void;
 }
 
 /**
@@ -225,6 +231,7 @@ export class PairMachine {
         machine.timer = null;
       }
       this.transition(userId, "paired");
+      this.events.onSocketReady?.(userId, handle);
     } catch (err) {
       log.error({ err }, "resumePaired: socketFactory failed");
       this.transition(userId, "error");
@@ -295,6 +302,10 @@ export class PairMachine {
       if (machine.timer) {
         clearTimeout(machine.timer);
         machine.timer = null;
+      }
+      // Notify ingest (and other) subscribers that a live socket is ready.
+      if (machine.socket) {
+        this.events.onSocketReady?.(userId, machine.socket);
       }
       if (jid) {
         this.events.onPaired(userId, {

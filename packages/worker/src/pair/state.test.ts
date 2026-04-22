@@ -40,6 +40,8 @@ function makeFakeSocket(initialCreds: AuthenticationCreds = makeFakeCreds()): Fa
     creds,
     keys,
     dispose,
+    // Minimal stub — state.ts only calls dispose() and reads creds/keys.
+    sock: {} as SocketHandle["sock"],
   };
   const emit = (update: Partial<ConnectionState>): void => {
     onUpdate?.(update);

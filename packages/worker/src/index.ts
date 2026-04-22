@@ -10,7 +10,9 @@ import { Redis } from "ioredis";
 import { pino, type Logger } from "pino";
 
 import { env } from "./env.js";
+import { startConsumer, subscribe, type ConsumerHandle } from "./ingest/index.js";
 import { makeAuthStore } from "./pair/authStore.js";
+import type { SocketHandle } from "./pair/baileys.js";
 import { startPairWorker } from "./pair/index.js";
 import { restorePairedSessions } from "./pair/restore.js";
 import { makeSnapshotScheduler, type SnapshotScheduler } from "./pair/snapshot.js";
@@ -69,6 +71,57 @@ async function main(): Promise<void> {
   const authStore = makeAuthStore(redis, logger);
   const snapshotter: SnapshotScheduler = makeSnapshotScheduler(prisma, authStore, logger);
   const audit = makeWorkerAudit(prisma, env.MASTER_KEY_BYTES, logger);
+
+  // Track per-user ingest teardown handles.
+  const ingestUnsubscribers = new Map<string, () => void>();
+  const ingestConsumers = new Map<string, ConsumerHandle>();
+
+  async function startIngest(userId: string, handle: SocketHandle): Promise<void> {
+    // Avoid double-wiring if already active.
+    if (ingestUnsubscribers.has(userId)) {
+      return;
+    }
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { encryptedDek: true },
+      });
+      if (!user) {
+        logger.error({ userId }, "startIngest: user not found");
+        return;
+      }
+      const wrapped = parseCiphertext(Buffer.from(user.encryptedDek).toString("utf8"));
+      const dek = unwrapDek(env.MASTER_KEY_BYTES, wrapped);
+
+      const { unsubscribe } = subscribe(userId, handle.sock, redis, logger);
+      ingestUnsubscribers.set(userId, unsubscribe);
+
+      const consumer = await startConsumer({
+        userId,
+        prisma,
+        redis,
+        dek,
+        masterKey: env.MASTER_KEY_BYTES,
+        logger,
+      });
+      ingestConsumers.set(userId, consumer);
+    } catch (err) {
+      logger.error({ err, userId }, "startIngest failed");
+    }
+  }
+
+  function stopIngest(userId: string): void {
+    const unsub = ingestUnsubscribers.get(userId);
+    if (unsub) {
+      unsub();
+      ingestUnsubscribers.delete(userId);
+    }
+    const consumer = ingestConsumers.get(userId);
+    if (consumer) {
+      consumer.stop();
+      ingestConsumers.delete(userId);
+    }
+  }
 
   const pairMachine = new PairMachine(
     {
@@ -160,6 +213,7 @@ async function main(): Promise<void> {
           .set(`wpa:wa-session:${userId}:state`, "error")
           .catch((e: unknown) => logger.error({ err: e, userId }, "redis set error state failed"));
         snapshotter.stop(userId);
+        stopIngest(userId);
         authStore
           .clear(userId)
           .catch((e: unknown) => logger.error({ err: e, userId }, "authStore clear failed"));
@@ -169,6 +223,9 @@ async function main(): Promise<void> {
           subtype: "failed",
           details: { error: err.message },
         });
+      },
+      onSocketReady: (userId, handle) => {
+        void startIngest(userId, handle);
       },
     },
     { logger },
@@ -204,6 +261,12 @@ async function main(): Promise<void> {
     if (!running) return;
     running = false;
     logger.info("shutdown: flushing snapshots + closing pair worker");
+    // Stop all ingest consumers and unsubscribe from socket events.
+    for (const userId of Array.from(ingestUnsubscribers.keys())) {
+      stopIngest(userId);
+    }
+    // Wait for in-flight consumer loops to exit.
+    await Promise.allSettled(Array.from(ingestConsumers.values()).map((c) => c.done));
     try {
       await snapshotter.shutdown();
     } catch (err) {
