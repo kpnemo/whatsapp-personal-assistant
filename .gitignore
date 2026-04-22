@@ -33,6 +33,12 @@ pnpm-debug.log*
 coverage/
 .nyc_output/
 
+# Playwright
+packages/web/playwright-report/
+packages/web/test-results/
+packages/web/.playwright/
+packages/web/e2e/.state/
+
 # Prisma generated client
 packages/*/src/generated/
 

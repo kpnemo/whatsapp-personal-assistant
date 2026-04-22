@@ -15,6 +15,13 @@ export default tseslint.config(
       "**/*.generated.*",
       "**/generated/**",
       "packages/web/dist/**",
+      // Playwright E2E specs + config live outside the src/ tsconfig include;
+      // typed-lint would fail to resolve them. Kept green via `tsc --noEmit`
+      // inside the playwright runner itself.
+      "packages/web/e2e/**",
+      "packages/web/playwright.config.ts",
+      "packages/web/playwright-report/**",
+      "packages/web/test-results/**",
       "website/**",
     ],
   },

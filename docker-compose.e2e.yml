@@ -1,0 +1,21 @@
+# docker-compose override for the Playwright E2E stack. Used in combination
+# with the base docker-compose.yml:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml \
+#     -p wpa-e2e --env-file .env.e2e up -d
+#
+# Purpose:
+#   1. Swap `env_file: .env` → `.env.e2e` so the e2e stack reads a fresh,
+#      throwaway env (written by packages/web/e2e/global-setup.ts on each run)
+#      instead of the user's dev `.env`.
+#   2. Force ENTRYPOINT_ROLE=api so only the Express API starts under
+#      supervisord. We don't run the Baileys worker in e2e — it would try to
+#      dial WhatsApp for real on /pair/init, which is both unreliable in CI
+#      and undesirable (fake test pairings shouldn't hit WA infra). The pair
+#      spec fakes the worker by writing state + QR directly into Redis.
+
+services:
+  app:
+    env_file: .env.e2e
+    environment:
+      ENTRYPOINT_ROLE: api

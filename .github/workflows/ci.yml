@@ -142,3 +142,32 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: bash scripts/smoke-test.sh
+
+  test-e2e:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @wpa/db exec prisma generate
+      - run: pnpm --filter @wpa/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @wpa/web test:e2e
+        env:
+          E2E_PORT: "3100"
+          CI: "1"
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: packages/web/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
