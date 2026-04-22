@@ -24,7 +24,12 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 FROM deps AS build
 COPY . .
 RUN pnpm --filter @wpa/db exec prisma generate
-RUN pnpm -r --filter "@wpa/*" --filter "!@wpa/test-utils" build
+# Build ALL @wpa/* packages including @wpa/test-utils. Test files in the
+# worker/api packages import `@wpa/test-utils` for their vitest suites;
+# when tsc runs on those packages it needs test-utils/dist to exist for
+# type resolution. The .test.ts files don't ship to runtime (entrypoint
+# scripts only start the compiled service, not the tests).
+RUN pnpm -r --filter "@wpa/*" build
 RUN pnpm --filter @wpa/web build
 
 FROM node:${NODE_VERSION}-alpine AS runtime
