@@ -88,6 +88,11 @@ These define the product's identity. Violating one of them is a refactor-the-who
 
 - **P0 — Foundation & Install.** The repo a stranger can clone and bring up.
 - **P1 — Ingest (silent).** QR pair, messages flow in, dashboard shows them. No AI.
+  - [x] QR pairing works end-to-end (P1-A shipped)
+  - [ ] Message ingest + encrypted storage
+  - [ ] Conversation sidebar + message viewer
+  - [ ] SSE live updates
+  - [ ] `/wpa:pair` slash command
 - **P2 — Understand (read-only).** AI summaries, @-mentions, action items, suggested replies — never sent.
 - **P3 — Rules & Auto-reply.** Per-conversation rules, three modes, humanized timing, audit trail.
 - **P4 — Integrations.** Google Calendar + Gmail. Extracted events become real bookings.

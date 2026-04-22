@@ -5,6 +5,7 @@ This wiki is **source-controlled** in the main repo under [`wiki/`](https://gith
 ## Where to go
 
 - **Just want to install it?** → [Installation Deep Dive](./Installation-Deep-Dive)
+- **Pairing your WhatsApp** → [docs/PAIRING.md](https://github.com/kpnemo/whatsapp-personal-assistant/blob/main/docs/PAIRING.md)
 - **Using Claude Code to run it?** → [Claude Code Commands](./Claude-Code-Commands)
 - **Product vision and anti-goals** → [docs/VISION.md](https://github.com/kpnemo/whatsapp-personal-assistant/blob/main/docs/VISION.md)
 - **Threat model** → [docs/SECURITY.md](https://github.com/kpnemo/whatsapp-personal-assistant/blob/main/docs/SECURITY.md)
