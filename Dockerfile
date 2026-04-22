@@ -17,6 +17,7 @@ COPY packages/agent/package.json packages/agent/
 COPY packages/shared/package.json packages/shared/
 COPY packages/db/package.json packages/db/
 COPY packages/web/package.json packages/web/
+COPY packages/test-utils/package.json packages/test-utils/
 COPY website/package.json website/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile
