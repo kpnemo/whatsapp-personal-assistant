@@ -10,7 +10,7 @@ import { join } from "node:path";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
-import { LocalDiskMediaStore } from "./mediaStore.js";
+import { LocalDiskMediaStore, makeLocalDiskMediaStore } from "./mediaStore.js";
 
 // Create a unique root dir for this test run so parallel runs don't collide.
 const ROOT_DIR = join(tmpdir(), `wpa-media-store-test-${Date.now().toString()}`);
@@ -80,5 +80,40 @@ describe("LocalDiskMediaStore", () => {
     await store.put("user-idem", "msg-idem", second);
     const result = await store.get("user-idem/msg-idem.bin");
     expect(result).toEqual(second);
+  });
+});
+
+describe("makeLocalDiskMediaStore factory", () => {
+  it("uses the explicit rootDir argument when provided", () => {
+    const made = makeLocalDiskMediaStore("/tmp/wpa-factory-explicit");
+    expect(made).toBeInstanceOf(LocalDiskMediaStore);
+  });
+
+  it("falls back to MEDIA_DIR env when no argument is provided", () => {
+    const prior = process.env.MEDIA_DIR;
+    try {
+      process.env.MEDIA_DIR = "/tmp/wpa-factory-env";
+      const made = makeLocalDiskMediaStore();
+      expect(made).toBeInstanceOf(LocalDiskMediaStore);
+    } finally {
+      if (prior === undefined) {
+        delete process.env.MEDIA_DIR;
+      } else {
+        process.env.MEDIA_DIR = prior;
+      }
+    }
+  });
+
+  it("defaults to /app/media when neither argument nor env is set", () => {
+    const prior = process.env.MEDIA_DIR;
+    try {
+      delete process.env.MEDIA_DIR;
+      const made = makeLocalDiskMediaStore();
+      expect(made).toBeInstanceOf(LocalDiskMediaStore);
+    } finally {
+      if (prior !== undefined) {
+        process.env.MEDIA_DIR = prior;
+      }
+    }
   });
 });
