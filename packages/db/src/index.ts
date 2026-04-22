@@ -9,6 +9,8 @@ export type {
   RefreshToken,
   Role,
   User,
+  WhatsappSession,
+  WhatsappSessionStatus,
 } from "@prisma/client";
 
 let instance: PrismaClient | undefined;

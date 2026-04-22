@@ -16,11 +16,11 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
         with:
           version: 9.12.3
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
@@ -31,16 +31,21 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
         with:
           version: 9.12.3
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @wpa/db exec prisma generate
+      # Build internal packages whose test files (linted here via TS project
+      # service) import `@wpa/test-utils` — without a built dist/index.d.ts
+      # TS-ESLint resolves those imports as `unknown` and every member access
+      # cascades into an `@typescript-eslint/no-unsafe-*` error.
+      - run: pnpm --filter @wpa/shared --filter @wpa/db --filter @wpa/test-utils build
       - run: pnpm lint
       - run: pnpm format:check
 
@@ -48,11 +53,11 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
         with:
           version: 9.12.3
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
@@ -91,29 +96,48 @@ jobs:
       MASTER_KEY: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=
       PUBLIC_ORIGIN: http://localhost:3000
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
         with:
           version: 9.12.3
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @wpa/db exec prisma generate
-      - run: pnpm --filter @wpa/shared --filter @wpa/db build
+      # Pre-build internal packages that export dist/index.js so workspace
+      # consumers (tests) can resolve them. @wpa/test-utils is imported by
+      # @wpa/db's schema.test.ts at runtime — without a built dist it fails
+      # with "Failed to resolve entry for package @wpa/test-utils".
+      - run: pnpm --filter @wpa/shared --filter @wpa/db --filter @wpa/test-utils build
       - run: pnpm --filter @wpa/db exec prisma migrate deploy
-      - run: pnpm test
+      - run: pnpm -r test -- --coverage
 
-  build:
-    needs: [lint, typecheck, test]
+  test-shell:
+    needs: setup
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
         with:
           version: 9.12.3
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: bash scripts/wpa/_test/run.sh
+
+  build:
+    needs: [lint, typecheck, test, test-shell]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
@@ -125,5 +149,39 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: bash scripts/smoke-test.sh
+
+  test-e2e:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @wpa/db exec prisma generate
+      - run: pnpm --filter @wpa/web exec playwright install --with-deps chromium
+      # Base docker-compose.yml has `env_file: .env` on the app service.
+      # The e2e override points app's env_file at .env.e2e (written by
+      # global-setup.ts), but compose still validates the base .env exists
+      # when merging the two files. Create an empty stub in CI.
+      - run: touch .env
+      - run: pnpm --filter @wpa/web test:e2e
+        env:
+          E2E_PORT: "3100"
+          CI: "1"
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: packages/web/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7

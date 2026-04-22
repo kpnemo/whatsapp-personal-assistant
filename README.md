@@ -27,7 +27,7 @@ docker compose up -d
 open http://localhost:3000
 ```
 
-First account registered becomes admin. Subsequent users join via invitation tokens.
+First account registered becomes admin. Subsequent users join via invitation tokens. Once logged in, visit `/pair` to link your WhatsApp number — see [`docs/PAIRING.md`](docs/PAIRING.md) for the walkthrough and troubleshooting.
 
 ## Deploy
 
@@ -44,6 +44,7 @@ Also supported: [Fly.io](deploy/flyio/) · [AWS Lightsail Containers](deploy/aws
 
 - [`docs/VISION.md`](docs/VISION.md) — product north star
 - [`docs/INSTALL.md`](docs/INSTALL.md) — every deploy target, step-by-step
+- [`docs/PAIRING.md`](docs/PAIRING.md) — link your WhatsApp number (QR pairing walkthrough + troubleshooting)
 - [`docs/SECURITY.md`](docs/SECURITY.md) — threat model + crypto choices
 - [`SECURITY.md`](SECURITY.md) — how to report a vulnerability
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to contribute

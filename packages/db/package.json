@@ -14,6 +14,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && prisma generate",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
     "clean": "rm -rf dist .turbo src/generated",
     "db:migrate": "prisma migrate deploy",
     "db:migrate:dev": "prisma migrate dev",
