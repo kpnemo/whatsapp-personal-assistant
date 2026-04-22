@@ -138,8 +138,11 @@ describe("GET /api/media/:messageId", () => {
     });
     const dek = getUserDek(user.encryptedDek);
 
-    const plaintext = "fake-jpeg-bytes";
-    const encryptedBlob = Buffer.from(serializeCiphertext(encryptWithKey(dek, plaintext)));
+    // Convention: base64-encode bytes before encrypting (mirrors worker ingest/media.ts).
+    const rawBytes = Buffer.from("fake-jpeg-bytes");
+    const encryptedBlob = Buffer.from(
+      serializeCiphertext(encryptWithKey(dek, rawBytes.toString("base64"))),
+    );
     const mediaRef = "media-ct-file.enc";
     await fs.writeFile(path.join(tmpMediaDir, mediaRef), encryptedBlob);
 
@@ -174,8 +177,11 @@ describe("GET /api/media/:messageId", () => {
     });
     const dek = getUserDek(user.encryptedDek);
 
-    const plaintext = "round-trip-test-payload";
-    const encryptedBlob = Buffer.from(serializeCiphertext(encryptWithKey(dek, plaintext)));
+    // Convention: base64-encode bytes before encrypting (mirrors worker ingest/media.ts).
+    const originalBytes = Buffer.from("round-trip-test-payload");
+    const encryptedBlob = Buffer.from(
+      serializeCiphertext(encryptWithKey(dek, originalBytes.toString("base64"))),
+    );
     const mediaRef = "media-roundtrip-file.enc";
     await fs.writeFile(path.join(tmpMediaDir, mediaRef), encryptedBlob);
 
@@ -200,13 +206,13 @@ describe("GET /api/media/:messageId", () => {
     const res = await agent
       .get(`/api/media/${msg.id}`)
       .buffer(true)
-      .parse((res, callback) => {
+      .parse((r, cb) => {
         const chunks: Buffer[] = [];
-        res.on("data", (chunk: Buffer) => chunks.push(chunk));
-        res.on("end", () => callback(null, Buffer.concat(chunks).toString("utf8")));
+        r.on("data", (c: Buffer) => chunks.push(c));
+        r.on("end", () => cb(null, Buffer.concat(chunks)));
       });
     expect(res.status).toBe(200);
-    expect(res.body as string).toBe(plaintext);
+    expect(Buffer.from(res.body as Buffer)).toEqual(originalBytes);
   });
 
   it("Cache-Control includes 'private'", async () => {
@@ -217,8 +223,12 @@ describe("GET /api/media/:messageId", () => {
     });
     const dek = getUserDek(user.encryptedDek);
 
-    const plaintext = "cache-control-test";
-    const encryptedBlob = Buffer.from(serializeCiphertext(encryptWithKey(dek, plaintext)));
+    // Convention: base64-encode bytes before encrypting (mirrors worker ingest/media.ts).
+    const encryptedBlob = Buffer.from(
+      serializeCiphertext(
+        encryptWithKey(dek, Buffer.from("cache-control-test").toString("base64")),
+      ),
+    );
     const mediaRef = "media-cc-file.enc";
     await fs.writeFile(path.join(tmpMediaDir, mediaRef), encryptedBlob);
 
@@ -243,5 +253,51 @@ describe("GET /api/media/:messageId", () => {
     const res = await agent.get(`/api/media/${msg.id}`);
     expect(res.status).toBe(200);
     expect(res.headers["cache-control"]).toContain("private");
+  });
+
+  it("round-trips binary bytes (base64 convention)", async () => {
+    const user = await seedUser(db.prisma, {
+      email: "media-binary@example.com",
+      role: "user",
+      password: "correct-horse-battery-staple",
+    });
+    const dek = getUserDek(user.encryptedDek);
+
+    // 10 bytes spanning 0x00 - 0xFF — proves base64 round-trip works for binary data.
+    const binaryBytes = Buffer.from([0, 127, 128, 200, 255, 10, 20, 30, 40, 50]);
+    const encryptedBlob = Buffer.from(
+      serializeCiphertext(encryptWithKey(dek, binaryBytes.toString("base64"))),
+    );
+    const mediaRef = "media-binary-file.enc";
+    await fs.writeFile(path.join(tmpMediaDir, mediaRef), encryptedBlob);
+
+    const conv = await db.prisma.conversation.create({
+      data: { userId: user.id, jid: "binary@s.whatsapp.net", type: "dm" },
+    });
+
+    const msg = await db.prisma.message.create({
+      data: {
+        conversationId: conv.id,
+        waMessageId: "binary-wamsg",
+        fromJid: "binary@s.whatsapp.net",
+        direction: "in",
+        timestamp: new Date(),
+        body: encryptField(dek, JSON.stringify({ kind: "image" })),
+        mediaRef,
+        mediaMime: "image/png",
+      },
+    });
+
+    const agent = await withAuth(app, { user: { id: user.id, role: "user" } });
+    const res = await agent
+      .get(`/api/media/${msg.id}`)
+      .buffer(true)
+      .parse((r, cb) => {
+        const chunks: Buffer[] = [];
+        r.on("data", (c: Buffer) => chunks.push(c));
+        r.on("end", () => cb(null, Buffer.concat(chunks)));
+      });
+    expect(res.status).toBe(200);
+    expect(Buffer.from(res.body as Buffer)).toEqual(binaryBytes);
   });
 });

@@ -75,19 +75,22 @@ export function mediaRouter(): Router {
     }
 
     // Decrypt media.
-    let plaintext: string;
+    // Convention: media bytes on disk are DEK-encrypted base64-encoded blobs.
+    // The worker (ingest/media.ts) base64-encodes binary payloads before
+    // encryptWithKey; here we reverse: decrypt → base64 → raw bytes.
+    let bytes: Buffer;
     try {
-      plaintext = decryptWithKey(dek, parseCiphertext(encryptedBytes.toString("utf8")));
+      const plaintextBase64 = decryptWithKey(dek, parseCiphertext(encryptedBytes.toString("utf8")));
+      bytes = Buffer.from(plaintextBase64, "base64");
     } catch (err) {
       logger.error({ err, userId, mediaPath }, "media: decrypt failed");
       res.status(500).json({ error: "internal_error" });
       return;
     }
 
-    const contentType = row.mediaMime ?? "application/octet-stream";
-    res.setHeader("Content-Type", contentType);
+    res.setHeader("Content-Type", row.mediaMime ?? "application/octet-stream");
     res.setHeader("Cache-Control", "private, max-age=300");
-    res.status(200).send(Buffer.from(plaintext, "utf8"));
+    res.end(bytes);
   });
 
   return r;

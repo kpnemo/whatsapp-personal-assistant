@@ -7,9 +7,42 @@ import { env } from "../env.js";
 import { logger } from "../logger.js";
 import { type AuthedResponse, requireAuth } from "../middleware/auth.js";
 
+/** Opaque base64url compound cursor — encodes { ts, id } for tie-safe pagination. */
+interface DecodedCursor {
+  ts: string | null;
+  id: string;
+}
+
+function encodeCursor(ts: Date | null, id: string): string {
+  const payload = JSON.stringify({ ts: ts?.toISOString() ?? null, id });
+  return Buffer.from(payload).toString("base64url");
+}
+
+function decodeCursor(raw: string): DecodedCursor | null {
+  try {
+    const payload = Buffer.from(raw, "base64url").toString("utf8");
+    const parsed = JSON.parse(payload) as unknown;
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !("id" in parsed) ||
+      typeof (parsed as Record<string, unknown>).id !== "string"
+    ) {
+      return null;
+    }
+    const obj = parsed as Record<string, unknown>;
+    const rawTs = obj.ts;
+    const ts =
+      rawTs === null || rawTs === undefined ? null : typeof rawTs === "string" ? rawTs : null;
+    return { ts, id: obj.id as string };
+  } catch {
+    return null;
+  }
+}
+
 const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
-  cursor: z.string().datetime({ offset: true }).optional(),
+  cursor: z.string().optional(),
 });
 
 export function conversationsRouter(): Router {
@@ -28,7 +61,17 @@ export function conversationsRouter(): Router {
       return;
     }
 
-    const { limit, cursor } = parsed.data;
+    const { limit, cursor: rawCursor } = parsed.data;
+
+    // Decode compound cursor if provided.
+    let cursor: DecodedCursor | null = null;
+    if (rawCursor !== undefined) {
+      cursor = decodeCursor(rawCursor);
+      if (cursor === null) {
+        res.status(400).json({ error: "invalid_cursor" });
+        return;
+      }
+    }
 
     const prisma = getPrisma();
 
@@ -48,10 +91,33 @@ export function conversationsRouter(): Router {
     }
 
     // Fetch limit+1 to determine if there's a next page.
+    // The compound cursor encodes both lastMessageAt and id for tie-safe pagination.
+    // Order is DESC nulls-last on lastMessageAt, then ASC on id for ties.
+    // Cursor WHERE: rows that come AFTER the cursor in that ordering.
     const rows = await prisma.conversation.findMany({
       where: {
         userId,
-        ...(cursor ? { lastMessageAt: { lt: new Date(cursor) } } : {}),
+        ...(cursor
+          ? {
+              OR: [
+                // Rows with a strictly older lastMessageAt (null comes last so excluded here).
+                ...(cursor.ts !== null ? [{ lastMessageAt: { lt: new Date(cursor.ts) } }] : []),
+                // Rows tied on lastMessageAt with a higher id (tie-break by id ASC).
+                ...(cursor.ts !== null
+                  ? [
+                      {
+                        AND: [
+                          { lastMessageAt: { equals: new Date(cursor.ts) } },
+                          { id: { gt: cursor.id } },
+                        ],
+                      },
+                    ]
+                  : []),
+                // When cursor.ts is null, only null rows with higher id remain.
+                ...(cursor.ts === null ? [{ lastMessageAt: null, id: { gt: cursor.id } }] : []),
+              ],
+            }
+          : {}),
       },
       orderBy: [{ lastMessageAt: { sort: "desc", nulls: "last" } }, { id: "asc" }],
       take: limit + 1,
@@ -132,9 +198,9 @@ export function conversationsRouter(): Router {
       return result;
     });
 
-    const nextCursor = hasMore
-      ? (page[page.length - 1]?.lastMessageAt?.toISOString() ?? null)
-      : null;
+    const lastRow = page[page.length - 1];
+    const nextCursor =
+      hasMore && lastRow ? encodeCursor(lastRow.lastMessageAt ?? null, lastRow.id) : null;
 
     res.json({ conversations, nextCursor });
   });

@@ -100,4 +100,32 @@ describe("POST /api/pair/disconnect", () => {
     for (let i = 0; i < fields.length; i += 2) obj[fields[i]!] = fields[i + 1]!;
     expect(obj).toMatchObject({ type: "disconnect", userId: user.id });
   });
+
+  it("returns 204 even when the user has never paired", async () => {
+    // No WhatsappSession row created for this user — tests P2025 idempotency.
+    const user = await seedUser(db.prisma, {
+      email: "disconnect-never-paired@example.com",
+      role: "user",
+      password: "correct-horse-battery-staple",
+    });
+
+    const auditBefore = await db.prisma.auditLog.count({
+      where: { userId: user.id, type: "unpair" },
+    });
+    const streamLenBefore = await redis.client.xlen("wpa:pair-cmd");
+
+    const agent = await withAuth(app, { user: { id: user.id, role: "user" } });
+    const res = await agent.post("/api/pair/disconnect");
+    expect(res.status).toBe(204);
+
+    // Audit still written even though no session existed.
+    const auditAfter = await db.prisma.auditLog.count({
+      where: { userId: user.id, type: "unpair" },
+    });
+    expect(auditAfter).toBe(auditBefore + 1);
+
+    // Stream entry still published (idempotency).
+    const streamLenAfter = await redis.client.xlen("wpa:pair-cmd");
+    expect(streamLenAfter).toBe(streamLenBefore + 1);
+  });
 });

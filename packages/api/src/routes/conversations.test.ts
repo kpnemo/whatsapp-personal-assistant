@@ -278,6 +278,46 @@ describe("GET /api/conversations", () => {
     expect(conversations[0]!.title).toBe("Family Chat");
   });
 
+  it("paginates correctly when multiple conversations share a lastMessageAt", async () => {
+    const user = await seedUser(db.prisma, {
+      email: "conv-tied@example.com",
+      role: "user",
+      password: "correct-horse-battery-staple",
+    });
+    const sharedTime = new Date("2026-04-22T10:00:00Z");
+    for (let i = 0; i < 5; i++) {
+      await db.prisma.conversation.create({
+        data: {
+          userId: user.id,
+          jid: `tied-${i.toString()}@s.whatsapp.net`,
+          type: "dm",
+          lastMessageAt: sharedTime,
+        },
+      });
+    }
+    const agent = await withAuth(app, { user: { id: user.id, role: "user" } });
+
+    const page1 = await agent.get("/api/conversations?limit=3");
+    expect(page1.status).toBe(200);
+    const body1 = page1.body as { conversations: { jid: string }[]; nextCursor: string | null };
+    expect(body1.conversations).toHaveLength(3);
+    expect(body1.nextCursor).toBeTruthy();
+
+    const page2 = await agent.get(
+      `/api/conversations?limit=3&cursor=${encodeURIComponent(body1.nextCursor!)}`,
+    );
+    expect(page2.status).toBe(200);
+    const body2 = page2.body as { conversations: { jid: string }[]; nextCursor: string | null };
+    expect(body2.conversations).toHaveLength(2);
+
+    // Total across pages must be 5 unique jids — no loss or duplication.
+    const allJids = [
+      ...body1.conversations.map((c) => c.jid),
+      ...body2.conversations.map((c) => c.jid),
+    ];
+    expect(new Set(allJids).size).toBe(5);
+  });
+
   it("user B's conversations never appear for user A", async () => {
     const userA = await seedUser(db.prisma, {
       email: "conv-iso-a@example.com",

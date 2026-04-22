@@ -1,4 +1,4 @@
-import { getPrisma } from "@wpa/db";
+import { getPrisma, Prisma } from "@wpa/db";
 import { decryptWithKey, parseCiphertext, unwrapDek } from "@wpa/shared";
 import { type Request, Router } from "express";
 
@@ -144,10 +144,18 @@ export function pairRouter(): Router {
 
     await redis.xadd(PAIR_CMD_STREAM, "*", "userId", userId, "type", "disconnect");
 
-    await prisma.whatsappSession.update({
-      where: { userId },
-      data: { status: "disconnected" },
-    });
+    try {
+      await prisma.whatsappSession.update({
+        where: { userId },
+        data: { status: "disconnected" },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2025") {
+        // No session — disconnect is idempotent. Audit + 204.
+      } else {
+        throw err;
+      }
+    }
 
     await writeAudit({ userId, type: "unpair", details: { subtype: "soft", sessionId: userId } });
     res.status(204).end();
