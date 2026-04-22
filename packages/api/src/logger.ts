@@ -26,12 +26,17 @@ export const logger = pino({
       "body.password",
       "body.token",
       // Decrypted message content — must never reach logs via SSE or any route.
-      "body",
+      "body", // top-level body
+      "*.body", // nested body (e.g., req.body)
       "text",
+      "*.text",
       "name",
+      "*.name",
       "subject",
+      "*.subject",
       "description",
-      "body.text",
+      "*.description",
+      "body.text", // explicit deep paths kept for clarity
       "message.body",
       "conversation.title",
     ],

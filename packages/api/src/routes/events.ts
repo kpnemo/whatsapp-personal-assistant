@@ -1,5 +1,19 @@
+/**
+ * MVP SSE route.
+ *
+ * Known trade-offs accepted for P1-B MVP:
+ * 1. setHeartbeatMs module-level mutation: safe because vitest runs each
+ *    test file in an isolated worker. If parallel test threads are ever
+ *    enabled, refactor to accept heartbeatMs via eventsRouter({heartbeatMs}).
+ * 2. DECR-after-cleanup race: under sustained churn the counter can drift
+ *    slightly — e.g. 4 concurrent streams when cap is 3 if disconnects
+ *    race new connects. Acceptable for a personal tool; full atomicity
+ *    would require a Lua EVAL script.
+ */
+
 import type { Request } from "express";
 import { Router } from "express";
+import type { Redis } from "ioredis";
 
 import { env } from "../env.js";
 import { logger } from "../logger.js";
@@ -30,9 +44,17 @@ export function eventsRouter(): Router {
     const counterKey = `${SSE_COUNTER_PREFIX}${userId}`;
 
     // --- Concurrent stream cap ---
-    const count = await redis.incr(counterKey);
-    // Always refresh the TTL on every new connection so the window slides.
-    await redis.expire(counterKey, COUNTER_TTL_SECONDS);
+    // Pipeline INCR + EXPIRE in a single round-trip to minimise the window
+    // where a crash could leave a TTL-less key.  Not fully atomic (that would
+    // require a Lua EVAL), but the crash window is reduced to microseconds —
+    // acceptable for MVP.
+    const [incr, _expire] = (await redis
+      .pipeline()
+      .incr(counterKey)
+      .expire(counterKey, COUNTER_TTL_SECONDS)
+      .exec()) as [[Error | null, number], [Error | null, number]];
+    if (incr[0]) throw incr[0];
+    const count = incr[1];
 
     const maxStreams = env.SSE_MAX_STREAMS_PER_USER;
     if (count > maxStreams) {
@@ -40,6 +62,48 @@ export function eventsRouter(): Router {
       res.status(429).json({ error: "too_many_streams" });
       return;
     }
+
+    // --- Register cleanup BEFORE flushHeaders ---
+    // This guarantees the counter is decremented even if the client
+    // disconnects during header flush or before the subscriber is ready.
+    // Subscriber and heartbeat may not exist yet; the cleanup function checks
+    // for null before touching them.
+    let subscriber: Redis | null = null;
+    let heartbeat: NodeJS.Timeout | null = null;
+    let cleanedUp = false;
+    const channel = `ui:events:${userId}`;
+
+    const cleanup = async () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      if (heartbeat) clearInterval(heartbeat);
+      if (subscriber) {
+        try {
+          await subscriber.unsubscribe(channel);
+          await subscriber.quit();
+        } catch {
+          try {
+            subscriber.disconnect();
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+      try {
+        await redis.decr(counterKey);
+      } catch {
+        /* best effort */
+      }
+      try {
+        res.end();
+      } catch {
+        /* ignore */
+      }
+    };
+
+    req.on("close", () => {
+      void cleanup();
+    });
 
     // --- SSE headers ---
     res.setHeader("Content-Type", "text/event-stream");
@@ -52,9 +116,8 @@ export function eventsRouter(): Router {
     // --- Per-request subscriber client ---
     // ioredis connections that have entered subscribe mode cannot issue regular
     // commands, so we allocate a fresh client per SSE stream.  Each client is
-    // fully cleaned up in the "close" handler below.
-    const subscriber = createSubscriberClient();
-    const channel = `ui:events:${userId}`;
+    // fully cleaned up in the cleanup handler above.
+    subscriber = createSubscriberClient();
 
     void subscriber.subscribe(channel, (err) => {
       if (err) {
@@ -62,34 +125,23 @@ export function eventsRouter(): Router {
       }
     });
 
-    subscriber.on("message", (_chan: string, payload: string) => {
-      res.write(`data: ${payload}\n\n`);
+    subscriber.on("message", (ch: string, payload: string) => {
+      if (ch !== channel) return;
+      // Split payload on newlines and emit one `data:` line per segment so
+      // that the browser EventSource reconstructs the original string.
+      // A naive `data: ${payload}\n\n` would break if payload contains \n
+      // (EventSource would see two fields and silently mangle the message).
+      const lines = payload
+        .split("\n")
+        .map((l) => `data: ${l}`)
+        .join("\n");
+      res.write(`${lines}\n\n`);
     });
 
     // --- Heartbeat ---
-    const heartbeat = setInterval(() => {
+    heartbeat = setInterval(() => {
       res.write(":heartbeat\n\n");
     }, HEARTBEAT_MS);
-
-    // --- Cleanup on disconnect ---
-    const cleanup = async () => {
-      clearInterval(heartbeat);
-      try {
-        await subscriber.unsubscribe(channel);
-        await subscriber.quit();
-      } catch (err) {
-        logger.warn({ err, userId }, "SSE subscriber quit error during cleanup");
-        subscriber.disconnect();
-      }
-      await redis.decr(counterKey);
-      res.end();
-    };
-
-    req.on("close", () => {
-      cleanup().catch((cleanupErr: unknown) => {
-        logger.warn({ err: cleanupErr, userId }, "SSE cleanup error");
-      });
-    });
   });
 
   return r;

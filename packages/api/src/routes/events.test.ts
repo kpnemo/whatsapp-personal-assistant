@@ -246,6 +246,46 @@ describe("GET /api/events — SSE stream", () => {
     expect(raw).toContain(`data: ${payload}\n\n`);
   });
 
+  // 3b. Multi-line payload is framed correctly ───────────────────────────────
+  it("reconstructs a payload containing a literal \\n via multiple data: lines", async () => {
+    const user = await seedUser(db.prisma, {
+      email: "sse-multiline@example.com",
+      role: "user",
+      password: "correct-horse-battery-staple",
+    });
+
+    const token = await issueAccessToken(TEST_JWT_SECRET, { sub: user.id, role: "user" });
+
+    const collectPromise = listenSse(server, "/api/events", `Bearer ${token}`, 2000);
+
+    // Allow the SSE subscription to be established.
+    await new Promise((r) => setTimeout(r, 300));
+
+    const payload = JSON.stringify({ type: "message.created", text: "line1\nline2" });
+    // payload contains a literal \n inside the JSON string value
+
+    const publisher = new Redis(redis.url);
+    await publisher.publish(`ui:events:${user.id}`, payload);
+    await publisher.quit();
+
+    const raw = await collectPromise;
+
+    // The SSE frame should contain two `data:` lines followed by the blank line.
+    // Split the raw SSE body into individual event blocks (separated by \n\n).
+    const events = raw.split("\n\n").filter(Boolean);
+    // Find the event block that contains our type field.
+    const eventBlock = events.find((e) => e.includes("message.created"));
+    expect(eventBlock).toBeDefined();
+
+    // Re-join the data: lines to recover the original payload.
+    const lines = eventBlock!
+      .split("\n")
+      .filter((l) => l.startsWith("data: "))
+      .map((l) => l.slice("data: ".length));
+    const reconstructed = lines.join("\n");
+    expect(reconstructed).toBe(payload);
+  });
+
   // 4. Heartbeat comment arrives on interval ─────────────────────────────────
   it("emits :heartbeat comment lines at HEARTBEAT_MS interval", async () => {
     const user = await seedUser(db.prisma, {
