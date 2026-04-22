@@ -33,6 +33,13 @@ const envSchema = z.object({
   OPEN_REGISTRATION: boolish.default("false"),
   ENTRYPOINT_ROLE: z.enum(["api", "worker", "agent", "all"]).default("all"),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
+  MEDIA_DIR: z.string().default("/app/media"),
+  MEDIA_MAX_BYTES: z.coerce.number().int().positive().default(33_554_432),
+  INGEST_DLQ_MAX_DELIVERIES: z.coerce.number().int().positive().default(3),
+  MEDIA_CONCURRENCY_USER: z.coerce.number().int().positive().default(3),
+  MEDIA_CONCURRENCY_GLOBAL: z.coerce.number().int().positive().default(10),
+  SSE_MAX_STREAMS_PER_USER: z.coerce.number().int().positive().default(3),
+  MESSAGE_RETENTION_DAYS: z.coerce.number().int().min(0).default(0),
 });
 
 export type ParsedEnv = z.infer<typeof envSchema> & { MASTER_KEY_BYTES: Buffer };

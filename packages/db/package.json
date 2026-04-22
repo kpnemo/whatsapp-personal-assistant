@@ -24,6 +24,7 @@
     "@prisma/client": "6.0.1"
   },
   "devDependencies": {
+    "@wpa/test-utils": "workspace:*",
     "prisma": "6.0.1"
   },
   "prisma": {

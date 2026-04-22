@@ -41,4 +41,23 @@ describe("parseEnv", () => {
     const env = parseEnv(rest);
     expect(env.OPEN_REGISTRATION).toBe(false);
   });
+
+  it("uses default values for new P1-B env vars", () => {
+    const env = parseEnv(valid);
+    expect(env.MEDIA_DIR).toBe("/app/media");
+    expect(env.MEDIA_MAX_BYTES).toBe(33_554_432);
+    expect(env.INGEST_DLQ_MAX_DELIVERIES).toBe(3);
+    expect(env.SSE_MAX_STREAMS_PER_USER).toBe(3);
+    expect(env.MESSAGE_RETENTION_DAYS).toBe(0);
+  });
+
+  it("parses P1-B env overrides from strings", () => {
+    const env = parseEnv({
+      ...valid,
+      MEDIA_MAX_BYTES: "67108864",
+      SSE_MAX_STREAMS_PER_USER: "5",
+    });
+    expect(env.MEDIA_MAX_BYTES).toBe(67_108_864);
+    expect(env.SSE_MAX_STREAMS_PER_USER).toBe(5);
+  });
 });
