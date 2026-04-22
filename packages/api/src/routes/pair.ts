@@ -151,7 +151,9 @@ export function pairRouter(): Router {
     }
     const prisma = getPrisma();
 
-    await redis.xadd(PAIR_CMD_STREAM, "*", "userId", userId, "type", "disconnect");
+    // Worker's pair command dispatcher only understands "init" | "stop".
+    // Disconnect ≡ stop — closes the Baileys socket + clears Redis state.
+    await redis.xadd(PAIR_CMD_STREAM, "*", "userId", userId, "type", "stop");
 
     try {
       await prisma.whatsappSession.update({

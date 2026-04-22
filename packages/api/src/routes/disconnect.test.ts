@@ -98,7 +98,9 @@ describe("POST /api/pair/disconnect", () => {
     const fields = entries[0]![1];
     const obj: Record<string, string> = {};
     for (let i = 0; i < fields.length; i += 2) obj[fields[i]!] = fields[i + 1]!;
-    expect(obj).toMatchObject({ type: "disconnect", userId: user.id });
+    // Worker's pair-cmd dispatcher only knows "init" | "stop"; disconnect
+    // is sent as "stop" (see pair.ts comment on the XADD call).
+    expect(obj).toMatchObject({ type: "stop", userId: user.id });
   });
 
   it("returns 429 after exceeding 3 req/hour rate limit on POST /api/pair/disconnect", async () => {
