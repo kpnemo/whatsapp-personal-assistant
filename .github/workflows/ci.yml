@@ -41,6 +41,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @wpa/db exec prisma generate
+      # Build internal packages whose test files (linted here via TS project
+      # service) import `@wpa/test-utils` — without a built dist/index.d.ts
+      # TS-ESLint resolves those imports as `unknown` and every member access
+      # cascades into an `@typescript-eslint/no-unsafe-*` error.
+      - run: pnpm --filter @wpa/shared --filter @wpa/db --filter @wpa/test-utils build
       - run: pnpm lint
       - run: pnpm format:check
 
