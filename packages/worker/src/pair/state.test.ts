@@ -98,31 +98,13 @@ function makeEvents(): PairMachineEvents & {
   };
 }
 
-async function flushMicrotasks(): Promise<void> {
-  // `qrcode.toBuffer` → pngjs → zlib (libuv). Real timers run through that;
-  // we only fake setTimeout/clearTimeout so this await loop still ticks.
-  // 50 iterations (up from 5) + one real-timer yield per 10 — covers slow
-  // GitHub runners where the zlib deflate occasionally takes 10+ event-loop
-  // turns to complete (previously flaky on the "awaiting_scan" transitions
-  // and "multiple concurrent userIds" specs).
-  for (let i = 0; i < 50; i += 1) {
-    await new Promise<void>((r) => setImmediate(r));
-    if (i % 10 === 9) {
-      await new Promise<void>((r) => {
-        setTimeout(r, 0);
-      });
-    }
-  }
-  for (let i = 0; i < 20; i += 1) {
-    await Promise.resolve();
-  }
-  await new Promise<void>((r) => setImmediate(r));
-}
-
 describe("PairMachine", () => {
   beforeEach(() => {
     // Only fake setTimeout/clearTimeout so the expire timer is controllable;
     // leave microtasks and setImmediate real so `qrcode.toBuffer` resolves.
+    // We intentionally do NOT use a hand-rolled `flushMicrotasks` helper:
+    // under faked setTimeout, `await new Promise(r => setTimeout(r, 0))`
+    // never resolves. `vi.waitFor` polls against real microtasks instead.
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   });
   afterEach(() => {
@@ -161,9 +143,13 @@ describe("PairMachine", () => {
     const m = new PairMachine(events, { socketFactory: makeFactory(socket) });
     await m.start("u1", null);
     socket.emit({ qr: "qr-payload-1" });
-    await flushMicrotasks();
-    expect(m.getState("u1")).toBe("awaiting_scan");
-    expect(events.qrs).toHaveLength(1);
+    await vi.waitFor(
+      () => {
+        expect(m.getState("u1")).toBe("awaiting_scan");
+        expect(events.qrs).toHaveLength(1);
+      },
+      { timeout: 5_000 },
+    );
     expect(events.qrs[0]?.userId).toBe("u1");
     // base64 PNG signature starts with "iVBORw0KGgo" (decoded header 0x89 0x50 0x4E 0x47…)
     expect(events.qrs[0]?.qrPng).toMatch(/^iVBORw0KGgo/);
@@ -191,7 +177,7 @@ describe("PairMachine", () => {
     const m = new PairMachine(events, { socketFactory: makeFactory(socket) });
     await m.start("u1", null);
     socket.emit({ qr: "qr-1" });
-    await flushMicrotasks();
+    await vi.waitFor(() => expect(m.getState("u1")).toBe("awaiting_scan"), { timeout: 5_000 });
     // Simulate Baileys populating creds.me right before emitting open
     Object.assign(socket.handle.creds, {
       me: { id: "447700900123@s.whatsapp.net", name: "me" },
@@ -222,11 +208,9 @@ describe("PairMachine", () => {
     const m = new PairMachine(events, { socketFactory: makeFactory(socket) });
     await m.start("u1", null);
     socket.emit({ qr: "qr-1" });
-    await flushMicrotasks();
-    expect(m.getState("u1")).toBe("awaiting_scan");
+    await vi.waitFor(() => expect(m.getState("u1")).toBe("awaiting_scan"), { timeout: 5_000 });
     vi.advanceTimersByTime(2 * 60 * 1000);
-    await flushMicrotasks();
-    expect(m.getState("u1")).toBe("expired");
+    await vi.waitFor(() => expect(m.getState("u1")).toBe("expired"), { timeout: 5_000 });
     expect(socket.dispose).toHaveBeenCalled();
   });
 
@@ -237,8 +221,7 @@ describe("PairMachine", () => {
     await m.start("u1", null);
     expect(m.getState("u1")).toBe("generating");
     vi.advanceTimersByTime(2 * 60 * 1000);
-    await flushMicrotasks();
-    expect(m.getState("u1")).toBe("expired");
+    await vi.waitFor(() => expect(m.getState("u1")).toBe("expired"), { timeout: 5_000 });
   });
 
   it("generating receives connection close(error) → error + onError fires", async () => {
@@ -262,7 +245,7 @@ describe("PairMachine", () => {
     const m = new PairMachine(events, { socketFactory: makeFactory(socket) });
     await m.start("u1", null);
     socket.emit({ qr: "qr-1" });
-    await flushMicrotasks();
+    await vi.waitFor(() => expect(m.getState("u1")).toBe("awaiting_scan"), { timeout: 5_000 });
     socket.emit({
       connection: "close",
       lastDisconnect: { error: new Error("lost"), date: new Date() },
@@ -320,8 +303,7 @@ describe("PairMachine", () => {
     const m = new PairMachine(events, { socketFactory: factory });
     await m.start("u1", null);
     vi.advanceTimersByTime(2 * 60 * 1000);
-    await flushMicrotasks();
-    expect(m.getState("u1")).toBe("expired");
+    await vi.waitFor(() => expect(m.getState("u1")).toBe("expired"), { timeout: 5_000 });
     await m.start("u1", null);
     expect(m.getState("u1")).toBe("generating");
   });
@@ -348,9 +330,8 @@ describe("PairMachine", () => {
     await m.start("userB", null);
     // userA scans
     socketA.emit({ qr: "qrA" });
-    await flushMicrotasks();
+    await vi.waitFor(() => expect(m.getState("userA")).toBe("awaiting_scan"), { timeout: 5_000 });
     // userB remains generating
-    expect(m.getState("userA")).toBe("awaiting_scan");
     expect(m.getState("userB")).toBe("generating");
     Object.assign(socketA.handle.creds, {
       me: { id: "111@s.whatsapp.net", name: "a" },
@@ -368,9 +349,11 @@ describe("PairMachine", () => {
     await m.start("u1", null);
     await m.stop("u1");
     expect(m.getState("u1")).toBe("idle");
-    // Advancing past 2 min must not flip us back to expired.
+    // Advancing past 2 min must not flip us back to expired. Yield a few
+    // microtask turns in case any cancelled-timer promise chain is pending.
     vi.advanceTimersByTime(5 * 60 * 1000);
-    await flushMicrotasks();
+    await Promise.resolve();
+    await Promise.resolve();
     expect(m.getState("u1")).toBe("idle");
   });
 
@@ -432,11 +415,9 @@ describe("PairMachine", () => {
     });
     await m.start("u1", null);
     socket.emit({ qr: "q" });
-    await flushMicrotasks();
+    await vi.waitFor(() => expect(m.getState("u1")).toBe("awaiting_scan"), { timeout: 5_000 });
     vi.advanceTimersByTime(1_000);
-    // Allow the rejected dispose promise's catch handler to run.
-    await flushMicrotasks();
-    expect(m.getState("u1")).toBe("expired");
+    await vi.waitFor(() => expect(m.getState("u1")).toBe("expired"), { timeout: 5_000 });
   });
 
   it("honors custom expireMs", async () => {
@@ -450,7 +431,6 @@ describe("PairMachine", () => {
     vi.advanceTimersByTime(500);
     expect(m.getState("u1")).toBe("generating");
     vi.advanceTimersByTime(600);
-    await flushMicrotasks();
-    expect(m.getState("u1")).toBe("expired");
+    await vi.waitFor(() => expect(m.getState("u1")).toBe("expired"), { timeout: 5_000 });
   });
 });
