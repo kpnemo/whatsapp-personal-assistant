@@ -13,6 +13,7 @@ import { originGuard } from "./middleware/origin-guard.js";
 import { authRouter } from "./routes/auth.js";
 import { invitationsRouter } from "./routes/invitations.js";
 import { killRouter } from "./routes/kill.js";
+import { pairRouter } from "./routes/pair.js";
 
 export function createApp(): Express {
   const app = express();
@@ -47,6 +48,7 @@ export function createApp(): Express {
   app.use("/api", authRouter());
   app.use("/api", invitationsRouter());
   app.use("/api", killRouter());
+  app.use("/api", pairRouter());
 
   const webDist =
     process.env.WEB_DIST ?? path.resolve(fileURLToPath(import.meta.url), "../../../web/dist");
