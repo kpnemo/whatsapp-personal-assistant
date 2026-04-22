@@ -25,8 +25,17 @@ export const logger = pino({
       "ciphertext",
       "body.password",
       "body.token",
+      // Decrypted message content — must never reach logs via SSE or any route.
+      "body",
+      "text",
+      "name",
+      "subject",
+      "description",
+      "body.text",
+      "message.body",
+      "conversation.title",
     ],
-    censor: "[REDACTED]",
+    remove: true,
   },
   formatters: { level: (label: string) => ({ level: label }) },
 });

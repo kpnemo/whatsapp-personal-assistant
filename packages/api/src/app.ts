@@ -12,6 +12,7 @@ import { logger } from "./logger.js";
 import { originGuard } from "./middleware/origin-guard.js";
 import { authRouter } from "./routes/auth.js";
 import { conversationsRouter } from "./routes/conversations.js";
+import { eventsRouter } from "./routes/events.js";
 import { invitationsRouter } from "./routes/invitations.js";
 import { killRouter } from "./routes/kill.js";
 import { mediaRouter } from "./routes/media.js";
@@ -55,6 +56,7 @@ export function createApp(): Express {
   app.use("/api", conversationsRouter());
   app.use("/api", messagesRouter());
   app.use("/api", mediaRouter());
+  app.use("/api", eventsRouter());
 
   const webDist =
     process.env.WEB_DIST ?? path.resolve(fileURLToPath(import.meta.url), "../../../web/dist");
