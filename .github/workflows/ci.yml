@@ -168,6 +168,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @wpa/db exec prisma generate
       - run: pnpm --filter @wpa/web exec playwright install --with-deps chromium
+      # Base docker-compose.yml has `env_file: .env` on the app service.
+      # The e2e override points app's env_file at .env.e2e (written by
+      # global-setup.ts), but compose still validates the base .env exists
+      # when merging the two files. Create an empty stub in CI.
+      - run: touch .env
       - run: pnpm --filter @wpa/web test:e2e
         env:
           E2E_PORT: "3100"
