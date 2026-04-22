@@ -29,6 +29,8 @@ open http://localhost:3000
 
 First account registered becomes admin. Subsequent users join via invitation tokens. Once logged in, visit `/pair` to link your WhatsApp number — see [`docs/PAIRING.md`](docs/PAIRING.md) for the walkthrough and troubleshooting.
 
+After pairing, open `/chats` in the same browser session to see your conversations arrive live. See [docs/CHATS.md](docs/CHATS.md) for details.
+
 ## Deploy
 
 One-click options for hosted platforms — full config in [`deploy/`](deploy/).

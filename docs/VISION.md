@@ -6,7 +6,7 @@
 
 **Owner:** @mikeb
 **Status:** Living document
-**Last reviewed:** 2026-04-21 (pre-P0)
+**Last reviewed:** 2026-04-22 (post-P1-B)
 
 ---
 
@@ -89,9 +89,10 @@ These define the product's identity. Violating one of them is a refactor-the-who
 - **P0 — Foundation & Install.** The repo a stranger can clone and bring up.
 - **P1 — Ingest (silent).** QR pair, messages flow in, dashboard shows them. No AI.
   - [x] QR pairing works end-to-end (P1-A shipped)
-  - [ ] Message ingest + encrypted storage
-  - [ ] Conversation sidebar + message viewer
-  - [ ] SSE live updates
+  - [x] Message ingest + encrypted storage (P1-B shipped)
+  - [x] Conversation sidebar + message viewer (P1-B shipped)
+  - [x] SSE live updates (P1-B shipped)
+  - [x] Unpair flow / disconnect (P1-B shipped)
   - [ ] `/wpa:pair` slash command
 - **P2 — Understand (read-only).** AI summaries, @-mentions, action items, suggested replies — never sent.
 - **P3 — Rules & Auto-reply.** Per-conversation rules, three modes, humanized timing, audit trail.
@@ -117,3 +118,4 @@ These define the product's identity. Violating one of them is a refactor-the-who
 | Date | Phase boundary | Reviewer | Changes |
 |---|---|---|---|
 | 2026-04-21 | Pre-P0 (initial) | @mikeb | Document created. |
+| 2026-04-22 | Post-P1-B | @mikeb | Struck P1-B items: message ingest, chat viewer, SSE, unpair/disconnect. |

@@ -61,3 +61,43 @@ export async function clearRateLimits(): Promise<void> {
     "0",
   );
 }
+
+/**
+ * Inject a Baileys-shaped message directly into the Redis ingest stream
+ * (`wpa:msg:ingest:<userId>`). This bypasses WhatsApp entirely so E2E tests
+ * can exercise the full ingest → storage → SSE → UI path without a real WA
+ * session.
+ *
+ * The worker (ENTRYPOINT_ROLE=worker) consumes this stream and writes the
+ * message to Postgres. The E2E stack runs ENTRYPOINT_ROLE=api only, so the
+ * worker is absent — but we can still verify the API endpoints respond
+ * correctly once the DB is seeded by a test that calls this helper after
+ * starting a worker-like process, or (more commonly) as a shortcut that lets
+ * the API-only stack demonstrate the message appears via direct DB insert in
+ * a future spec.
+ *
+ * For tests that only need to validate the ingest stream exists and the
+ * consumer pattern is correct, calling this helper is sufficient.
+ */
+export interface FakeMessageOptions {
+  userId: string;
+  conversationJid: string;
+  text: string;
+  timestamp: number; // Unix seconds
+}
+
+export async function ingestFakeMessage(opts: FakeMessageOptions): Promise<void> {
+  const { userId, conversationJid, text, timestamp } = opts;
+
+  const raw = JSON.stringify({
+    key: {
+      remoteJid: conversationJid,
+      fromMe: false,
+      id: `TEST-${String(timestamp)}-${Math.random().toString(36).slice(2, 8)}`,
+    },
+    message: { conversation: text },
+    messageTimestamp: timestamp,
+  });
+
+  await redisCli("XADD", `wpa:msg:ingest:${userId}`, "*", "raw", raw);
+}

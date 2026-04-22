@@ -84,4 +84,30 @@ curl -fsS -X POST "$BASE/api/pair/init" \
   -d '{}' | jq -e '.sessionId' >/dev/null
 echo "smoke: /pair/init ok"
 
+# ---------------------------------------------------------------------------
+# Assertion 6 — inject a fake message into the ingest stream and verify it
+# lands in /api/conversations. This exercises the worker ingest pipeline
+# without needing a real WhatsApp session.
+# ---------------------------------------------------------------------------
+USER_ID="$(curl -fsS "$BASE/api/auth/me" -H "authorization: Bearer $TOKEN" | jq -r '.id')"
+REDIS_AUTH="$(grep '^REDIS_PASSWORD=' .env | cut -d= -f2)"
+
+docker compose exec -T redis redis-cli -a "$REDIS_AUTH" \
+  XADD "wpa:msg:ingest:$USER_ID" '*' raw \
+  "$(cat <<JSON
+{"key":{"remoteJid":"9@s.whatsapp.net","fromMe":false,"id":"SMOKE-TEST-1"},"message":{"conversation":"smoke"},"messageTimestamp":1800000000}
+JSON
+)" >/dev/null 2>&1
+
+# Give the ingest consumer a moment to pick it up.
+sleep 3
+
+CONV_COUNT="$(curl -fsS "$BASE/api/conversations" -H "authorization: Bearer $TOKEN" | jq '.conversations | length')"
+if [ "$CONV_COUNT" -ge 1 ]; then
+  echo "smoke: /api/conversations ok (${CONV_COUNT} conversation(s))"
+else
+  echo "smoke: /api/conversations empty after ingest"
+  exit 1
+fi
+
 echo "SMOKE PASS"
