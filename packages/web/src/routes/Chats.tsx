@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { MessageSquare } from "lucide-react";
-import { type JSX, useEffect } from "react";
+import { type JSX, useEffect, useRef } from "react";
 import { Link, useSearchParams } from "react-router";
 
 import { ConversationList } from "../components/ConversationList.js";
@@ -27,13 +27,24 @@ export function Chats(): JSX.Element {
 
   const { status, subscribe } = useEventStream();
 
+  // Keep a ref so the SSE effect can always read the current selectedId
+  // without being listed as a dependency (avoids reconnect on conversation switch).
+  const selectedIdRef = useRef(selectedId);
+  useEffect(() => {
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
+
   // Wire up SSE → query invalidation.
+  // This effect runs once on mount (subscribe and queryClient are stable).
+  // selectedId is read via ref so switching conversations does NOT tear down
+  // and recreate subscriptions, preventing dropped events during the gap.
   useEffect(() => {
     const unsub1 = subscribe("message.created", (data) => {
       const evt = data as SseMessageCreated;
       void queryClient.invalidateQueries({ queryKey: ["conversations"] });
-      if (selectedId && evt.conversationId === selectedId) {
-        void queryClient.invalidateQueries({ queryKey: ["messages", selectedId] });
+      const sid = selectedIdRef.current;
+      if (sid && evt.conversationId === sid) {
+        void queryClient.invalidateQueries({ queryKey: ["messages", sid] });
       }
     });
 
@@ -41,9 +52,12 @@ export function Chats(): JSX.Element {
       const evt = data as SseMediaReady;
       if (evt.conversationId) {
         void queryClient.invalidateQueries({ queryKey: ["messages", evt.conversationId] });
-      } else if (selectedId) {
-        // If the event doesn't carry conversationId, invalidate the open one.
-        void queryClient.invalidateQueries({ queryKey: ["messages", selectedId] });
+      } else {
+        const sid = selectedIdRef.current;
+        if (sid) {
+          // If the event doesn't carry conversationId, invalidate the open one.
+          void queryClient.invalidateQueries({ queryKey: ["messages", sid] });
+        }
       }
     });
 
@@ -56,7 +70,7 @@ export function Chats(): JSX.Element {
       unsub2();
       unsub3();
     };
-  }, [subscribe, queryClient, selectedId]);
+  }, [subscribe, queryClient]);
 
   function handleSelect(id: string): void {
     setSearchParams({ c: id });

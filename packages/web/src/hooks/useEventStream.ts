@@ -38,6 +38,13 @@ export function useEventStream(options: EventStreamOptions = {}): EventStreamRet
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unmountedRef = useRef(false);
 
+  // Keep url in a ref so connect() can always use the latest url without
+  // being listed as a dependency (avoids reconnecting on url reference changes).
+  const urlRef = useRef(url);
+  useEffect(() => {
+    urlRef.current = url;
+  }, [url]);
+
   const clearRetryTimer = useCallback(() => {
     if (retryTimerRef.current !== null) {
       clearTimeout(retryTimerRef.current);
@@ -50,7 +57,7 @@ export function useEventStream(options: EventStreamOptions = {}): EventStreamRet
 
     setStatus("connecting");
 
-    const es = new EventSource(buildUrl(url));
+    const es = new EventSource(buildUrl(urlRef.current));
     esRef.current = es;
 
     es.addEventListener("open", () => {
@@ -110,7 +117,7 @@ export function useEventStream(options: EventStreamOptions = {}): EventStreamRet
         if (!unmountedRef.current) connect();
       }, delay);
     });
-  }, [url]);
+  }, []); // no url dep — reads via urlRef
 
   useEffect(() => {
     unmountedRef.current = false;
