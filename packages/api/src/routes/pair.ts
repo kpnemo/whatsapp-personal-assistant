@@ -134,6 +134,25 @@ export function pairRouter(): Router {
     });
   });
 
+  r.post("/pair/disconnect", async (_req: Request, res: AuthedResponse) => {
+    const userId = res.locals.user?.sub;
+    if (!userId) {
+      res.status(401).json({ error: "unauthorized" });
+      return;
+    }
+    const prisma = getPrisma();
+
+    await redis.xadd(PAIR_CMD_STREAM, "*", "userId", userId, "type", "disconnect");
+
+    await prisma.whatsappSession.update({
+      where: { userId },
+      data: { status: "disconnected" },
+    });
+
+    await writeAudit({ userId, type: "unpair", details: { subtype: "soft", sessionId: userId } });
+    res.status(204).end();
+  });
+
   r.get("/pair/qr", async (_req: Request, res: AuthedResponse) => {
     const userId = res.locals.user?.sub;
     if (!userId) {

@@ -11,6 +11,7 @@ export type AuditType =
   | "ai_reply"
   | "rule_fired"
   | "decrypt"
+  | "ingest"
   | "login"
   | "login_failed"
   | "logout"
