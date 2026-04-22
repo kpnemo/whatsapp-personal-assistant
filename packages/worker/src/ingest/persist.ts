@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@wpa/db";
+import { Prisma, type PrismaClient } from "@wpa/db";
 import { encryptWithKey, serializeCiphertext } from "@wpa/shared";
 import type { Redis } from "ioredis";
 
@@ -89,18 +89,28 @@ export async function persist(
     return;
   }
 
-  // 5. Create Message
-  const message = await prisma.message.create({
-    data: {
-      conversationId: conversation.id,
-      waMessageId: normalized.waMessageId,
-      fromJid: normalized.fromJid,
-      direction: normalized.direction,
-      timestamp: normalized.timestamp,
-      body: encryptedBody,
-    },
-    select: { id: true },
-  });
+  // 5. Create Message (with TOCTOU race guard: catch P2002 as idempotent duplicate)
+  let message: { id: string };
+  try {
+    message = await prisma.message.create({
+      data: {
+        conversationId: conversation.id,
+        waMessageId: normalized.waMessageId,
+        fromJid: normalized.fromJid,
+        direction: normalized.direction,
+        timestamp: normalized.timestamp,
+        body: encryptedBody,
+      },
+      select: { id: true },
+    });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      // Duplicate — another worker already inserted this waMessageId concurrently.
+      // Treat as idempotent success; don't re-enqueue media or double-publish.
+      return;
+    }
+    throw err;
+  }
 
   // 6. Media enqueue
   if (normalized.body.mediaMeta && enqueueMedia) {

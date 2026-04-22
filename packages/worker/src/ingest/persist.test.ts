@@ -208,6 +208,94 @@ describe.sequential("persist — integration", () => {
     expect(typeof event.timestamp).toBe("string");
   }, 60_000);
 
+  it("drops duplicate waMessageId idempotently (P2002 race)", async () => {
+    // Simulate the TOCTOU race: pre-insert a message directly so the row
+    // exists in DB, then call persist() with the same waMessageId — the
+    // findUnique guard returns early, no error thrown.
+    const normalized = makeNormalized({ waMessageId: "race-test-msg-id" });
+
+    const enqueueMedia = vi.fn();
+    await persist(userId, normalized, {
+      prisma: testDb.prisma,
+      dek: TEST_DEK,
+      redis: testRedis.client,
+      enqueueMedia,
+    });
+
+    // Second call — same waMessageId. findUnique returns existing row → early return.
+    const enqueueMedia2 = vi.fn();
+    await expect(
+      persist(userId, normalized, {
+        prisma: testDb.prisma,
+        dek: TEST_DEK,
+        redis: testRedis.client,
+        enqueueMedia: enqueueMedia2,
+      }),
+    ).resolves.toBeUndefined();
+
+    // Only one row in DB.
+    const messages = await testDb.prisma.message.findMany({
+      where: { waMessageId: "race-test-msg-id" },
+    });
+    expect(messages).toHaveLength(1);
+
+    // Second call must not have enqueued media or published again.
+    expect(enqueueMedia2).not.toHaveBeenCalled();
+  }, 60_000);
+
+  it("P2002 on create is caught as idempotent (direct race simulation)", async () => {
+    // Simulate a genuine TOCTOU race by building a fake PrismaClient where
+    // findUnique always returns null (guard bypassed) but create throws P2002.
+    // persist() must catch P2002 and return cleanly without enqueuing or publishing.
+    const { Prisma } = await import("@wpa/db");
+
+    // Seed a real conversation + contact so our fake prisma can return a
+    // real conversationId (otherwise conversation.upsert would also need faking).
+    const normalizedFirst = makeNormalized({ waMessageId: "p2002-seed-msg" });
+    await persist(userId, normalizedFirst, {
+      prisma: testDb.prisma,
+      dek: TEST_DEK,
+      redis: testRedis.client,
+    });
+    const conv = await testDb.prisma.conversation.findFirst({ where: { userId } });
+    expect(conv).not.toBeNull();
+
+    // Build a minimal fake prisma that mimics the race-loser path:
+    //   - waContact/waGroup upsert succeeds
+    //   - conversation upsert returns the real conv id
+    //   - message.findUnique returns null (guard bypassed)
+    //   - message.create throws P2002 (race loser arrives after winner committed)
+    const p2002 = new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+      code: "P2002",
+      clientVersion: "5.0.0",
+    });
+    const fakePrisma = {
+      waContact: { upsert: vi.fn().mockResolvedValue({}) },
+      waGroup: { upsert: vi.fn().mockResolvedValue({}) },
+      conversation: { upsert: vi.fn().mockResolvedValue({ id: conv!.id }) },
+      message: {
+        findUnique: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockRejectedValue(p2002),
+      },
+    } as unknown as typeof testDb.prisma;
+
+    const enqueueMedia = vi.fn();
+    const normalized = makeNormalized({ waMessageId: "p2002-race-victim" });
+
+    // Must not throw — P2002 is silently treated as idempotent.
+    await expect(
+      persist(userId, normalized, {
+        prisma: fakePrisma,
+        dek: TEST_DEK,
+        redis: testRedis.client,
+        enqueueMedia,
+      }),
+    ).resolves.toBeUndefined();
+
+    // Media was NOT enqueued by the race loser.
+    expect(enqueueMedia).not.toHaveBeenCalled();
+  }, 60_000);
+
   it("group conversation: upserts WaGroup instead of WaContact", async () => {
     const normalized = makeNormalized({
       conversationJid: "112233445566-123456@g.us",

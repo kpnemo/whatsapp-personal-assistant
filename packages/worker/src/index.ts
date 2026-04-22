@@ -77,8 +77,8 @@ async function main(): Promise<void> {
   const ingestConsumers = new Map<string, ConsumerHandle>();
 
   async function startIngest(userId: string, handle: SocketHandle): Promise<void> {
-    // Avoid double-wiring if already active.
-    if (ingestUnsubscribers.has(userId)) {
+    // Avoid double-wiring if already active (check both maps to guard partial-start state).
+    if (ingestUnsubscribers.has(userId) || ingestConsumers.has(userId)) {
       return;
     }
     try {
@@ -106,6 +106,12 @@ async function main(): Promise<void> {
       });
       ingestConsumers.set(userId, consumer);
     } catch (err) {
+      // Partial-start cleanup — prevents subsequent onSocketReady from hitting the guard
+      // with a dangling unsubscriber that has no consumer behind it.
+      ingestUnsubscribers.get(userId)?.();
+      ingestUnsubscribers.delete(userId);
+      ingestConsumers.get(userId)?.stop();
+      ingestConsumers.delete(userId);
       logger.error({ err, userId }, "startIngest failed");
     }
   }

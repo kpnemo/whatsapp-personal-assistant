@@ -12,7 +12,10 @@ import { ingestStreamKey } from "./subscribe.js";
 
 const CONSUMER_GROUP = "wpa-ingest";
 const READ_COUNT = 10;
-const BLOCK_MS = 5_000;
+// BLOCK_MS is the max time xreadgroup will wait for new entries. Lower
+// values reduce shutdown latency (stop() resolves within BLOCK_MS) but
+// increase idle Redis traffic. 1s is a reasonable balance for MVP.
+const BLOCK_MS = 1_000;
 const DEFAULT_DLQ_MAX = 3;
 
 /** Redis key for tracking delivery attempts on a poison message entry. */
@@ -135,15 +138,23 @@ export async function startConsumer(opts: StartConsumerOpts): Promise<ConsumerHa
                 ? { prisma, dek, redis, enqueueMedia: opts.enqueueMedia }
                 : { prisma, dek, redis };
             await persist(userId, normalized, persistDeps);
+            // Clean up any retry counter for this entry (handles retry-then-success path).
+            await redis.del(retryKey(entryId));
             await redis.xack(streamKey, CONSUMER_GROUP, entryId);
           } catch (err) {
             log.error({ err, entryId }, "failed to process ingest entry");
-            // Increment delivery count. If we've hit the limit, DLQ it.
+            // Increment delivery count. On first attempt, set a 24h TTL to
+            // prevent orphan keys accumulating indefinitely.
             const attempts = await redis.hincrby(retryKey(entryId), "count", 1);
+            if (attempts === 1) {
+              await redis.expire(retryKey(entryId), 86_400);
+            }
             if (attempts >= dlqMax) {
               log.warn({ entryId, attempts }, "poison message — moving to DLQ");
               await redis.xadd(dlqKey(userId), "*", "entryId", entryId, "raw", rawJson ?? "");
               await redis.xack(streamKey, CONSUMER_GROUP, entryId);
+              // Delete the retry counter now that the entry is in DLQ.
+              await redis.del(retryKey(entryId));
               await audit({
                 userId,
                 subtype: "ingest.poison_message",
