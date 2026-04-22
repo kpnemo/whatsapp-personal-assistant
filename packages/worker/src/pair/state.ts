@@ -92,6 +92,8 @@ export class PairMachine {
   private readonly logger: Logger;
   private readonly socketFactory: SocketFactory;
   private readonly machines = new Map<string, SingleMachine>();
+  /** Tracks in-flight resumePaired calls to prevent TOCTOU races. */
+  private readonly inFlightResumes = new Set<string>();
 
   constructor(events: PairMachineEvents, opts: PairMachineOptions = {}) {
     this.events = events;
@@ -196,6 +198,10 @@ export class PairMachine {
   async resumePaired(userId: string, authState: AuthenticationState): Promise<void> {
     const current = this.machines.get(userId);
     if (current?.state === "paired") return;
+    // TOCTOU guard: if another async caller is already mid-resume for this
+    // userId, bail out immediately so we don't open a second socket.
+    if (this.inFlightResumes.has(userId)) return;
+    this.inFlightResumes.add(userId);
 
     // Ensure a machine entry exists so `transition` can use it.
     this.setMachine(userId, { state: "idle", socket: null, timer: null });
@@ -223,6 +229,8 @@ export class PairMachine {
       log.error({ err }, "resumePaired: socketFactory failed");
       this.transition(userId, "error");
       this.events.onError(userId, err instanceof Error ? err : new Error(String(err)));
+    } finally {
+      this.inFlightResumes.delete(userId);
     }
   }
 

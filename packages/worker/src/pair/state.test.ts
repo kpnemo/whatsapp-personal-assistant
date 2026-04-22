@@ -468,4 +468,24 @@ describe("PairMachine", () => {
     expect(events.stateChanges.length).toBe(1);
     expect(m.getState("u1")).toBe("paired");
   });
+
+  it("resumePaired is concurrency-safe (TOCTOU-free)", async () => {
+    const events = makeEvents();
+    let factoryCalls = 0;
+    const socket = makeFakeSocket();
+    const factory: SocketFactory = async (args) => {
+      factoryCalls += 1;
+      return makeFactory(socket)(args);
+    };
+    const m = new PairMachine(events, { socketFactory: factory });
+    const authState = {
+      creds: makeFakeCreds({ id: "1@s.whatsapp.net" }),
+      keys: { get: () => ({}), set: () => undefined },
+    } as unknown as AuthenticationState;
+
+    await Promise.all([m.resumePaired("u1", authState), m.resumePaired("u1", authState)]);
+
+    expect(factoryCalls).toBe(1);
+    expect(m.getState("u1")).toBe("paired");
+  });
 });

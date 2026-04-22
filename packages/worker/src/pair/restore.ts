@@ -118,15 +118,22 @@ export async function restorePairedSessions(
       // run even for an in-progress restore.
       const authState = await authStore.loadState(userId, dek);
       await pairMachine.resumePaired(userId, authState);
-      snapshotter.start(userId, dek);
-
-      restored += 1;
       await writeAudit(userId, "pair.restored", { keys: blob.keys.length });
+      // last step because it's non-throwing and owns the socket lifecycle
+      snapshotter.start(userId, dek);
+      restored += 1;
       log.info({ userId, keys: blob.keys.length }, "session restored");
     } catch (err) {
       failed += 1;
       const message = err instanceof Error ? err.message : String(err);
       log.error({ err, userId }, "restore failed");
+      // If resumePaired already succeeded, tear down the live socket so DB and
+      // memory state agree before we mark this session disconnected.
+      try {
+        await pairMachine.stop(userId);
+      } catch {
+        // best-effort; don't mask the original error
+      }
       try {
         await prisma.whatsappSession.update({
           where: { userId },
