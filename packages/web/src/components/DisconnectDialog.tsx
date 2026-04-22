@@ -63,8 +63,8 @@ export function DisconnectDialog({
       <AlertDialogHeader>
         <AlertDialogTitle>Disconnect WhatsApp?</AlertDialogTitle>
         <AlertDialogDescription>
-          This will close the Baileys socket and unlink your WhatsApp session. You will need to scan
-          a new QR code to reconnect.
+          This will close your WhatsApp session. Your message history stays safe, stored encrypted —
+          you can re-pair anytime to resume.
         </AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>

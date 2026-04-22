@@ -1,5 +1,6 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { type JSX } from "react";
+import type React from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,9 @@ function ConversationItem({
   return (
     <button
       type="button"
+      role="option"
+      aria-selected={isSelected}
+      tabIndex={isSelected ? 0 : -1}
       onClick={onSelect}
       className={`flex w-full flex-col gap-0.5 rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent ${
         isSelected ? "bg-accent" : ""
@@ -65,6 +69,21 @@ function ConversationItem({
       ) : null}
     </button>
   );
+}
+
+function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>): void {
+  if (e.key !== "ArrowDown" && e.key !== "ArrowUp" && e.key !== "Enter") return;
+  const items = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="option"]'));
+  const currentIdx = items.findIndex((b) => b === document.activeElement);
+  if (e.key === "Enter" && currentIdx >= 0) {
+    items[currentIdx]?.click();
+    e.preventDefault();
+    return;
+  }
+  const delta = e.key === "ArrowDown" ? 1 : -1;
+  const next = items[Math.max(0, Math.min(items.length - 1, currentIdx + delta))];
+  next?.focus();
+  e.preventDefault();
 }
 
 export function ConversationList({
@@ -97,7 +116,12 @@ export function ConversationList({
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="flex flex-col gap-0.5 p-2">
+        <div
+          role="listbox"
+          aria-label="Conversations"
+          className="flex flex-col gap-0.5 p-2"
+          onKeyDown={handleKeyDown}
+        >
           {isLoading ? (
             <>
               <Skeleton className="h-12 w-full rounded-lg" />

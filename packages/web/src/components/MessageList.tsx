@@ -68,7 +68,12 @@ export function MessageList({ conversationId }: MessageListProps): JSX.Element {
             <Skeleton className="ml-auto h-8 w-1/2 rounded-2xl" />
           </div>
         ) : (
-          <div className="flex flex-col gap-1 py-2" data-testid="message-list">
+          <div
+            className="flex flex-col gap-1 py-2"
+            data-testid="message-list"
+            role="log"
+            aria-live="polite"
+          >
             {allMessages.map((msg) => (
               <MessageBubble key={msg.id} message={msg} pageMessages={allMessages} />
             ))}
