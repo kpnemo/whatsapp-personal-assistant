@@ -8,13 +8,20 @@
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
+    "@whiskeysockets/baileys": "6.7.21",
     "@wpa/shared": "workspace:*",
-    "pino": "9.5.0"
+    "ioredis": "5.10.1",
+    "pino": "9.5.0",
+    "qrcode": "1.5.4"
   },
   "devDependencies": {
-    "tsx": "4.21.0"
+    "@types/node": "22.19.17",
+    "@types/qrcode": "1.5.6",
+    "tsx": "4.21.0",
+    "vitest": "2.1.9"
   }
 }
