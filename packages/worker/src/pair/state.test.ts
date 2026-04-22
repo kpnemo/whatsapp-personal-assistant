@@ -101,8 +101,17 @@ function makeEvents(): PairMachineEvents & {
 async function flushMicrotasks(): Promise<void> {
   // `qrcode.toBuffer` → pngjs → zlib (libuv). Real timers run through that;
   // we only fake setTimeout/clearTimeout so this await loop still ticks.
-  for (let i = 0; i < 5; i += 1) {
+  // 50 iterations (up from 5) + one real-timer yield per 10 — covers slow
+  // GitHub runners where the zlib deflate occasionally takes 10+ event-loop
+  // turns to complete (previously flaky on the "awaiting_scan" transitions
+  // and "multiple concurrent userIds" specs).
+  for (let i = 0; i < 50; i += 1) {
     await new Promise<void>((r) => setImmediate(r));
+    if (i % 10 === 9) {
+      await new Promise<void>((r) => {
+        setTimeout(r, 0);
+      });
+    }
   }
   for (let i = 0; i < 20; i += 1) {
     await Promise.resolve();
