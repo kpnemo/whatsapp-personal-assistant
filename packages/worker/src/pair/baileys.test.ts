@@ -9,6 +9,8 @@ const hoisted = vi.hoisted(() => {
   const sockEnd = vi.fn();
   const cacheableSentinel: unknown = { __cacheable: true };
   const cacheableSpy = vi.fn(() => cacheableSentinel);
+  const fakeVersion: [number, number, number] = [2, 3000, 1025000000];
+  const fetchVersionSpy = vi.fn(() => Promise.resolve({ version: fakeVersion, isLatest: true }));
   const makeWASocketSpy = vi.fn((opts: unknown) => {
     lastCall.opts = opts;
     return {
@@ -29,6 +31,8 @@ const hoisted = vi.hoisted(() => {
     sockEnd,
     cacheableSentinel,
     cacheableSpy,
+    fakeVersion,
+    fetchVersionSpy,
     makeWASocketSpy,
   };
 });
@@ -40,6 +44,9 @@ vi.mock("@whiskeysockets/baileys", async (importOriginal) => {
     default: hoisted.makeWASocketSpy,
     makeWASocket: hoisted.makeWASocketSpy,
     makeCacheableSignalKeyStore: hoisted.cacheableSpy,
+    fetchLatestBaileysVersion: hoisted.fetchVersionSpy,
+    // Preserve the real Browsers helper so we can still compare values.
+    Browsers: (actual as { Browsers?: unknown }).Browsers,
     initAuthCreds: () => ({ registered: false, platform: undefined }),
   };
 });
@@ -66,6 +73,7 @@ describe("makeSocket (baileys wrapper)", () => {
     hoisted.sockEnd.mockReset();
     hoisted.cacheableSpy.mockClear();
     hoisted.makeWASocketSpy.mockClear();
+    hoisted.fetchVersionSpy.mockClear();
   });
 
   it("passes hardened options through to makeWASocket", async () => {
@@ -79,11 +87,31 @@ describe("makeSocket (baileys wrapper)", () => {
     expect(hoisted.lastCall.opts).toBeTruthy();
     const opts = hoisted.lastCall.opts as Record<string, unknown>;
     expect(opts.printQRInTerminal).toBe(false);
-    expect(opts.browser).toEqual(["wpa", "Safari", "1.0"]);
+    // Browsers.macOS("Chrome") returns ["Mac OS", "Chrome", "<version>"]; we
+    // don't care about the version string, only that we stopped advertising
+    // the rejected ["wpa","Safari","1.0"] triple.
+    expect(Array.isArray(opts.browser)).toBe(true);
+    expect(opts.browser).not.toEqual(["wpa", "Safari", "1.0"]);
+    const browser = opts.browser as [string, string, string];
+    expect(browser[0]).toMatch(/Mac/i);
+    expect(browser[1]).toBe("Chrome");
     expect(opts.syncFullHistory).toBe(false);
     expect(opts.generateHighQualityLinkPreview).toBe(false);
     expect(opts.markOnlineOnConnect).toBe(false);
     expect(opts.logger).toBe(fakeLogger);
+  });
+
+  it("fetches the latest WhatsApp Web version and passes it to makeWASocket", async () => {
+    await makeSocket({
+      userId: "u1",
+      authState: null,
+      onUpdate: vi.fn(),
+      onCredsUpdate: vi.fn(),
+      logger: fakeLogger,
+    });
+    expect(hoisted.fetchVersionSpy).toHaveBeenCalledTimes(1);
+    const opts = hoisted.lastCall.opts as { version: [number, number, number] };
+    expect(opts.version).toEqual(hoisted.fakeVersion);
   });
 
   it("wraps state.keys in makeCacheableSignalKeyStore", async () => {

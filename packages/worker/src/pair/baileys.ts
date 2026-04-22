@@ -1,4 +1,6 @@
 import makeWASocket, {
+  Browsers,
+  fetchLatestBaileysVersion,
   initAuthCreds,
   makeCacheableSignalKeyStore,
   type AuthenticationCreds,
@@ -80,7 +82,6 @@ function makeInMemoryKeyStore(): SignalKeyStore {
  * (printQRInTerminal off, no history sync, no link previews, no auto-online)
  * so we never accidentally ship a variant with the noisy defaults.
  */
-// eslint-disable-next-line @typescript-eslint/require-await
 export async function makeSocket(opts: MakeSocketOpts): Promise<SocketHandle> {
   const { userId, authState, onUpdate, onCredsUpdate, logger } = opts;
 
@@ -88,11 +89,26 @@ export async function makeSocket(opts: MakeSocketOpts): Promise<SocketHandle> {
   const rawKeys = authState?.keys ?? makeInMemoryKeyStore();
   const keys = makeCacheableSignalKeyStore(rawKeys, logger);
 
+  // Fetch the current WhatsApp Web protocol version at connect-time.
+  // Without this, Baileys' built-in default version drifts behind what
+  // WhatsApp's servers accept — the handshake fails with HTTP 405
+  // "Connection Failure" at `location:"atn"` and pairing dies before
+  // a QR is ever rendered. fetchLatestBaileysVersion() resolves via
+  // the upstream WA version endpoint and falls back gracefully if the
+  // endpoint is unreachable (returns {version, isLatest:false}).
+  const { version, isLatest } = await fetchLatestBaileysVersion();
+  logger.info({ version, isLatest, userId }, "fetched WhatsApp Web version");
+
   const sock = makeWASocket({
+    version,
     auth: { creds, keys },
     logger,
     printQRInTerminal: false,
-    browser: ["wpa", "Safari", "1.0"],
+    // Browsers.macOS("Chrome") reports as a normal desktop Chrome browser on
+    // WhatsApp's "Linked Devices" list — standard, less likely to trip
+    // server-side heuristics than the previous ["wpa","Safari","1.0"] triple
+    // which some WA server versions reject outright.
+    browser: Browsers.macOS("Chrome"),
     syncFullHistory: false,
     generateHighQualityLinkPreview: false,
     markOnlineOnConnect: false,
