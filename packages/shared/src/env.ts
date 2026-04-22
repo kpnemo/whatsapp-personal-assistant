@@ -38,6 +38,7 @@ const envSchema = z.object({
   INGEST_DLQ_MAX_DELIVERIES: z.coerce.number().int().positive().default(3),
   MEDIA_CONCURRENCY_USER: z.coerce.number().int().positive().default(3),
   MEDIA_CONCURRENCY_GLOBAL: z.coerce.number().int().positive().default(10),
+  MEDIA_QUEUE_PER_USER: z.coerce.number().int().positive().default(100),
   SSE_MAX_STREAMS_PER_USER: z.coerce.number().int().positive().default(3),
   MESSAGE_RETENTION_DAYS: z.coerce.number().int().min(0).default(0),
 });

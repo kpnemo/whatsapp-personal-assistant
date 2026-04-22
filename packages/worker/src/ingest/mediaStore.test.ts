@@ -73,6 +73,11 @@ describe("LocalDiskMediaStore", () => {
     await expect(store.get("nonexistent/msg.bin")).rejects.toThrow();
   });
 
+  it("rejects path-traversal refs", async () => {
+    await expect(store.get("../etc/passwd")).rejects.toThrow(/path traversal/i);
+    await expect(store.get("../../secrets.txt")).rejects.toThrow(/path traversal/i);
+  });
+
   it("put is idempotent — second write overwrites first", async () => {
     const first = Buffer.from("first");
     const second = Buffer.from("second");

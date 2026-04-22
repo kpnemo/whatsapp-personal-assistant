@@ -94,7 +94,7 @@ async function main(): Promise<void> {
     perUserConcurrency: env.MEDIA_CONCURRENCY_USER,
     globalConcurrency: env.MEDIA_CONCURRENCY_GLOBAL,
     maxBytes: env.MEDIA_MAX_BYTES,
-    queuePerUserMax: 100,
+    queuePerUserMax: env.MEDIA_QUEUE_PER_USER,
     audit: (userId, subtype, details) =>
       writeAudit({
         prisma,
@@ -110,11 +110,11 @@ async function main(): Promise<void> {
   const ingestUnsubscribers = new Map<string, () => void>();
   const ingestConsumers = new Map<string, ConsumerHandle>();
 
-  async function startIngest(userId: string, handle: SocketHandle): Promise<void> {
-    // Avoid double-wiring if already active (check both maps to guard partial-start state).
-    if (ingestUnsubscribers.has(userId) || ingestConsumers.has(userId)) {
-      return;
-    }
+  // In-flight guard: prevents a concurrent second onSocketReady call for the
+  // same userId from passing the map-based guard before the first await resolves.
+  const startingIngest = new Map<string, Promise<void>>();
+
+  async function _startIngest(userId: string, handle: SocketHandle): Promise<void> {
     try {
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -168,6 +168,24 @@ async function main(): Promise<void> {
       ingestConsumers.get(userId)?.stop();
       ingestConsumers.delete(userId);
       logger.error({ err, userId }, "startIngest failed");
+    }
+  }
+
+  async function startIngest(userId: string, handle: SocketHandle): Promise<void> {
+    // Avoid double-wiring if already active or in-flight.
+    if (
+      ingestUnsubscribers.has(userId) ||
+      ingestConsumers.has(userId) ||
+      startingIngest.has(userId)
+    ) {
+      return;
+    }
+    const p = _startIngest(userId, handle);
+    startingIngest.set(userId, p);
+    try {
+      await p;
+    } finally {
+      startingIngest.delete(userId);
     }
   }
 

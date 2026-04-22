@@ -49,6 +49,7 @@ describe("parseEnv", () => {
     expect(env.INGEST_DLQ_MAX_DELIVERIES).toBe(3);
     expect(env.SSE_MAX_STREAMS_PER_USER).toBe(3);
     expect(env.MESSAGE_RETENTION_DAYS).toBe(0);
+    expect(env.MEDIA_QUEUE_PER_USER).toBe(100);
   });
 
   it("parses P1-B env overrides from strings", () => {

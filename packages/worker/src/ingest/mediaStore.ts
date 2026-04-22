@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 /**
  * Abstraction for persisting encrypted media blobs.
@@ -41,7 +41,11 @@ export class LocalDiskMediaStore implements MediaStore {
   }
 
   async get(ref: string): Promise<Buffer> {
-    const filePath = join(this.#rootDir, ref);
+    const filePath = resolve(this.#rootDir, ref);
+    const rootResolved = resolve(this.#rootDir);
+    if (filePath !== rootResolved && !filePath.startsWith(rootResolved + sep)) {
+      throw new Error("invalid media ref: path traversal detected");
+    }
     return readFile(filePath);
   }
 }
