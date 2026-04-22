@@ -1,11 +1,39 @@
+-- P1-B ingest schema — idempotent on purpose.
+--
+-- Safety: this migration clears any prior partial P1-B state (from earlier
+-- IB1 iterations that used PascalCase tables, or from any partial apply)
+-- before creating the final snake_case schema. All DROP IF EXISTS guards
+-- are no-ops on a fresh database.
+--
+-- Recovery from a failed prior attempt:
+--   docker compose exec app pnpm --filter @wpa/db exec \
+--     prisma migrate resolve --rolled-back 20260422194628_p1b_ingest
+-- then restart the app; this migration will re-run cleanly.
+
+-- DropStaleTables (old PascalCase naming from pre-@@map IB1 iterations).
+DROP TABLE IF EXISTS "Message" CASCADE;
+DROP TABLE IF EXISTS "Conversation" CASCADE;
+DROP TABLE IF EXISTS "WaContact" CASCADE;
+DROP TABLE IF EXISTS "WaGroup" CASCADE;
+
+-- DropStaleTables (current snake_case — partial-apply recovery).
+DROP TABLE IF EXISTS "messages" CASCADE;
+DROP TABLE IF EXISTS "conversations" CASCADE;
+DROP TABLE IF EXISTS "wa_contacts" CASCADE;
+DROP TABLE IF EXISTS "wa_groups" CASCADE;
+
+-- DropStaleTypes (partial-apply recovery).
+DROP TYPE IF EXISTS "ConversationType";
+DROP TYPE IF EXISTS "MessageDirection";
+
 -- CreateEnum
 CREATE TYPE "ConversationType" AS ENUM ('dm', 'group');
 
 -- CreateEnum
 CREATE TYPE "MessageDirection" AS ENUM ('in', 'out');
 
--- AlterEnum
-ALTER TYPE "AuditType" ADD VALUE 'ingest';
+-- AlterEnum — idempotent via IF NOT EXISTS (Postgres 12+).
+ALTER TYPE "AuditType" ADD VALUE IF NOT EXISTS 'ingest';
 
 -- CreateTable
 CREATE TABLE "wa_contacts" (
