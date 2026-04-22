@@ -1,6 +1,45 @@
-import type { AuditType, PrismaClient } from "@wpa/db";
-
 import { decryptWithKey, encryptWithKey, parseCiphertext, serializeCiphertext } from "./crypto.js";
+
+/**
+ * AuditType mirrors the Prisma enum in packages/db/prisma/schema.prisma.
+ * Declared here as a literal union (instead of `import type { AuditType } from "@wpa/db"`)
+ * so @wpa/shared has no build-time dependency on @wpa/db — that dependency
+ * was causing a turbo build-graph cycle. Callers may cast a Prisma-generated
+ * AuditType to this union (value-level identical).
+ */
+export type AuditType =
+  | "ai_reply"
+  | "rule_fired"
+  | "decrypt"
+  | "login"
+  | "login_failed"
+  | "logout"
+  | "register"
+  | "invite_create"
+  | "invite_consume"
+  | "setting_change"
+  | "kill"
+  | "pair"
+  | "unpair";
+
+/**
+ * Minimal structural contract for the Prisma client passed to writeAudit.
+ * Keeping this an inline interface (instead of `import type { PrismaClient } from "@wpa/db"`)
+ * avoids the @wpa/shared → @wpa/db build-graph cycle. Any real Prisma client
+ * satisfies this shape by construction.
+ */
+export interface AuditPrismaClient {
+  auditLog: {
+    create: (args: {
+      data: {
+        userId: string | null;
+        type: AuditType;
+        targetRef: string | null;
+        details: Buffer | null;
+      };
+    }) => Promise<unknown>;
+  };
+}
 
 /**
  * Encode arbitrary audit `details` into encrypted Bytes for storage in
@@ -23,7 +62,7 @@ export function decodeAuditDetails(key: Buffer, bytes: Buffer): unknown {
 }
 
 export interface WriteAuditParams {
-  prisma: PrismaClient;
+  prisma: AuditPrismaClient;
   masterKey: Buffer;
   userId?: string;
   type: AuditType;

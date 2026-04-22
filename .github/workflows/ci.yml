@@ -101,7 +101,11 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @wpa/db exec prisma generate
-      - run: pnpm --filter @wpa/shared --filter @wpa/db build
+      # Pre-build internal packages that export dist/index.js so workspace
+      # consumers (tests) can resolve them. @wpa/test-utils is imported by
+      # @wpa/db's schema.test.ts at runtime — without a built dist it fails
+      # with "Failed to resolve entry for package @wpa/test-utils".
+      - run: pnpm --filter @wpa/shared --filter @wpa/db --filter @wpa/test-utils build
       - run: pnpm --filter @wpa/db exec prisma migrate deploy
       - run: pnpm -r test -- --coverage
 
