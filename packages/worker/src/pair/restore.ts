@@ -109,13 +109,15 @@ export async function restorePairedSessions(
       }
 
       // Decrypt the hydrated state into a fully-formed Baileys
-      // AuthenticationState so `pairMachine.start` hits the restore path.
+      // AuthenticationState and re-open the Baileys socket with the restored
+      // creds. resumePaired transitions idle → paired without emitting onPaired
+      // (which is a first-time-link event); restoration writes its own audit.
       // NOTE: the worker's `onPaired` handler ALSO starts the snapshot
-      // scheduler. We still call it here explicitly because the PairMachine
-      // only fires onPaired when `creds.me.id` is set — and the snapshot
-      // heartbeat must run even for an in-progress restore.
+      // scheduler. We still call snapshotter.start here explicitly because
+      // resumePaired does not emit onPaired — and the snapshot heartbeat must
+      // run even for an in-progress restore.
       const authState = await authStore.loadState(userId, dek);
-      await pairMachine.start(userId, authState);
+      await pairMachine.resumePaired(userId, authState);
       snapshotter.start(userId, dek);
 
       restored += 1;

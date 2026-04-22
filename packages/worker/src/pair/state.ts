@@ -181,6 +181,52 @@ export class PairMachine {
   }
 
   /**
+   * Restore a previously paired session on worker boot.
+   *
+   * Opens the Baileys socket with the decrypted `authState` from the DB
+   * snapshot, transitions idle → paired, and emits `onStateChange`. Does NOT
+   * emit `onPaired` — that event is for first-time links only; resumption
+   * writes its own `pair.restored` audit upstream.
+   *
+   * Idempotent: if a `paired` machine already exists for this userId, returns
+   * immediately without opening a second socket.
+   *
+   * On factory error: emits `onError` and leaves the machine in `error` state.
+   */
+  async resumePaired(userId: string, authState: AuthenticationState): Promise<void> {
+    const current = this.machines.get(userId);
+    if (current?.state === "paired") return;
+
+    // Ensure a machine entry exists so `transition` can use it.
+    this.setMachine(userId, { state: "idle", socket: null, timer: null });
+
+    const log = this.childLogger(userId);
+    try {
+      const handle = await this.socketFactory({
+        userId,
+        authState,
+        onUpdate: (update) => {
+          this.handleUpdate(userId, update);
+        },
+        onCredsUpdate: (creds) => {
+          this.events.onCredsUpdate?.(userId, creds);
+        },
+        logger: log,
+      });
+      const machine = this.machines.get(userId);
+      if (machine) {
+        machine.socket = handle;
+        machine.timer = null;
+      }
+      this.transition(userId, "paired");
+    } catch (err) {
+      log.error({ err }, "resumePaired: socketFactory failed");
+      this.transition(userId, "error");
+      this.events.onError(userId, err instanceof Error ? err : new Error(String(err)));
+    }
+  }
+
+  /**
    * Stop a pair flow (user cancelled, shutdown, or rate-limited cleanup).
    */
   async stop(userId: string): Promise<void> {

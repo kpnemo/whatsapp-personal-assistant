@@ -38,13 +38,19 @@ function makeFakeScheduler(): FakeScheduler {
 interface FakePairMachine {
   machine: PairMachine;
   starts: { userId: string; authState: AuthenticationState | null }[];
+  resumes: { userId: string; authState: AuthenticationState }[];
 }
 
 function makeFakePairMachine(): FakePairMachine {
   const starts: { userId: string; authState: AuthenticationState | null }[] = [];
+  const resumes: { userId: string; authState: AuthenticationState }[] = [];
   const stub = {
     start: vi.fn((userId: string, authState: AuthenticationState | null) => {
       starts.push({ userId, authState });
+      return Promise.resolve();
+    }),
+    resumePaired: vi.fn((userId: string, authState: AuthenticationState) => {
+      resumes.push({ userId, authState });
       return Promise.resolve();
     }),
     stop: vi.fn(() => Promise.resolve()),
@@ -53,6 +59,7 @@ function makeFakePairMachine(): FakePairMachine {
   return {
     machine: stub as unknown as PairMachine,
     starts,
+    resumes,
   };
 }
 
@@ -150,12 +157,15 @@ describe("restorePairedSessions (real Redis + real Postgres)", () => {
     });
 
     expect(summary).toEqual({ restored: 1, failed: 0 });
-    expect(pair.starts).toHaveLength(1);
-    expect(pair.starts[0]!.userId).toBe(userId);
+    // resumePaired must be called (not start) on the happy path.
+    expect(pair.resumes).toHaveLength(1);
+    expect(pair.resumes[0]!.userId).toBe(userId);
     // authState should be reconstructed with creds restored.
-    const authState = pair.starts[0]!.authState;
+    const authState = pair.resumes[0]!.authState;
     expect(authState).toBeTruthy();
-    expect(authState!.creds.registrationId).toBeTypeOf("number");
+    expect(authState.creds.registrationId).toBeTypeOf("number");
+    // start must NOT be called on the restore happy path.
+    expect(pair.starts).toHaveLength(0);
 
     expect(snap.started).toEqual([userId]);
 
@@ -327,6 +337,7 @@ describe("restorePairedSessions (real Redis + real Postgres)", () => {
     });
     expect(summary).toEqual({ restored: 1, failed: 1 });
     expect(audits.map((a) => a.subtype).sort()).toEqual(["pair.failed", "pair.restored"]);
-    expect(pair.starts.map((s) => s.userId)).toEqual([good.userId]);
+    expect(pair.resumes.map((s) => s.userId)).toEqual([good.userId]);
+    expect(pair.starts).toHaveLength(0);
   });
 });

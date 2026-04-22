@@ -433,4 +433,39 @@ describe("PairMachine", () => {
     vi.advanceTimersByTime(600);
     await vi.waitFor(() => expect(m.getState("u1")).toBe("expired"), { timeout: 5_000 });
   });
+
+  it("resumePaired(userId, authState) transitions idle → paired and opens socket", async () => {
+    const events = makeEvents();
+    const socket = makeFakeSocket();
+    const m = new PairMachine(events, { socketFactory: makeFactory(socket) });
+    const authState = {
+      creds: makeFakeCreds({ id: "123@s.whatsapp.net", platform: "android" }),
+      keys: { get: () => ({}), set: () => undefined },
+    } as unknown as AuthenticationState;
+
+    await m.resumePaired("u1", authState);
+
+    expect(m.getState("u1")).toBe("paired");
+    expect(socket.handle.userId).toBe("u1");
+    // No onPaired emit — resumePaired is restoration, not first-time link.
+    expect(events.paireds).toEqual([]);
+    // State transition IS recorded idle → paired.
+    expect(events.stateChanges).toEqual([{ userId: "u1", next: "paired", prev: "idle" }]);
+  });
+
+  it("resumePaired is idempotent when already paired for the same userId", async () => {
+    const events = makeEvents();
+    const socket = makeFakeSocket();
+    const m = new PairMachine(events, { socketFactory: makeFactory(socket) });
+    const authState = {
+      creds: makeFakeCreds({ id: "1@s.whatsapp.net" }),
+      keys: { get: () => ({}), set: () => undefined },
+    } as unknown as AuthenticationState;
+
+    await m.resumePaired("u1", authState);
+    await m.resumePaired("u1", authState);
+
+    expect(events.stateChanges.length).toBe(1);
+    expect(m.getState("u1")).toBe("paired");
+  });
 });
