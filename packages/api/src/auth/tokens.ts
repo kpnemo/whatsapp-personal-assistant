@@ -64,3 +64,36 @@ export function hashRefreshToken(token: string): string {
 
 export const ACCESS_TTL = ACCESS_TTL_SECONDS;
 export const REFRESH_TTL_DAYS = 7;
+
+export const REFRESH_COOKIE_NAME = "wpa_refresh";
+export const REFRESH_COOKIE_PATH = "/api/auth";
+export const REFRESH_COOKIE_MAX_AGE_MS = REFRESH_TTL_DAYS * 86_400 * 1000;
+
+export interface RefreshCookieOptions {
+  httpOnly: true;
+  sameSite: "strict";
+  secure: boolean;
+  path: typeof REFRESH_COOKIE_PATH;
+  maxAge: typeof REFRESH_COOKIE_MAX_AGE_MS;
+}
+
+/**
+ * Cookie attributes used for the refresh-token cookie. Centralised so SameSite
+ * and Secure don't drift between login / refresh / clearCookie call sites.
+ *
+ * SameSite=Strict closes the CodeQL CSRF finding by preventing browsers from
+ * attaching the cookie on any cross-site request (including top-level GETs).
+ * `secure` is forced on in production so the cookie is never sent over plaintext.
+ */
+export function refreshCookieOptions(params: {
+  secureRequest: boolean;
+  nodeEnv: string;
+}): RefreshCookieOptions {
+  return {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: params.secureRequest || params.nodeEnv === "production",
+    path: REFRESH_COOKIE_PATH,
+    maxAge: REFRESH_COOKIE_MAX_AGE_MS,
+  };
+}

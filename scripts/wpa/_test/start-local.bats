@@ -43,7 +43,7 @@ POSTGRES_USER=wpa
 POSTGRES_DB=wpa
 REDIS_PASSWORD=
 PUBLIC_ORIGIN=http://localhost:3000
-API_PORT=3000
+API_HOST_PORT=3000
 EOF
   # Pretend docker-compose.yml exists so preflight knows we're in a repo root
   cat >"$dir/docker-compose.yml" <<'EOF'
@@ -62,7 +62,7 @@ echo "MASTER_KEY=Zm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZm9vYmFyZg==" >>"$ENV_F
 echo "JWT_SECRET=jwtsecretjwtsecretjwtsecretjwtsecret" >>"$ENV_FILE"
 echo "POSTGRES_PASSWORD=pgpw" >>"$ENV_FILE"
 echo "REDIS_PASSWORD=rdpw" >>"$ENV_FILE"
-echo "API_PORT=3000" >>"$ENV_FILE"
+echo "API_HOST_PORT=3000" >>"$ENV_FILE"
 echo "PUBLIC_ORIGIN=http://localhost:3000" >>"$ENV_FILE"
 echo "FIRSTRUN_STUB_RAN=1" >>"$ENV_FILE"
 EOF
@@ -152,10 +152,11 @@ EOF
   cd "$TEST_TMP"
   run bash "$SCRIPT" --dry-run --port 3456
   assert_success
-  # The script stamps API_PORT in .env
+  # The script stamps API_HOST_PORT in .env (docker-compose port mapping;
+  # container-internal API_PORT stays 3000 via env.ts default)
   assert_file_exists "$TEST_TMP/.env"
-  run grep '^API_PORT=' "$TEST_TMP/.env"
-  assert_output "API_PORT=3456"
+  run grep '^API_HOST_PORT=' "$TEST_TMP/.env"
+  assert_output "API_HOST_PORT=3456"
 }
 
 @test "--port N: also stamps PUBLIC_ORIGIN with the chosen port" {
@@ -173,7 +174,7 @@ EOF
   run bash "$SCRIPT" --dry-run
   assert_success
   local port
-  port="$(grep '^API_PORT=' "$TEST_TMP/.env" | cut -d= -f2-)"
+  port="$(grep '^API_HOST_PORT=' "$TEST_TMP/.env" | cut -d= -f2-)"
   [ -n "$port" ]
   [ "$port" -gt 1024 ]
   [ "$port" -lt 65536 ]
@@ -205,7 +206,7 @@ MASTER_KEY=existingkey
 JWT_SECRET=existingsecret
 POSTGRES_PASSWORD=existingpg
 REDIS_PASSWORD=existingrd
-API_PORT=3000
+API_HOST_PORT=3000
 PUBLIC_ORIGIN=http://localhost:3000
 EOF
   chmod 600 ".env"
@@ -271,7 +272,7 @@ time.sleep(5)
 
   assert_success
   local port
-  port="$(grep '^API_PORT=' "$TEST_TMP/.env" | cut -d= -f2-)"
+  port="$(grep '^API_HOST_PORT=' "$TEST_TMP/.env" | cut -d= -f2-)"
   # Must NOT have picked 3000 since we held it
   [ "$port" != "3000" ]
   [ "$port" -gt 1024 ]
@@ -353,7 +354,7 @@ MASTER_KEY=existingkey
 JWT_SECRET=existingsecret
 POSTGRES_PASSWORD=existingpg
 REDIS_PASSWORD=existingrd
-API_PORT=$healthz_port
+API_HOST_PORT=$healthz_port
 PUBLIC_ORIGIN=http://localhost:$healthz_port
 EOF
   chmod 600 ".env"
@@ -426,7 +427,7 @@ MASTER_KEY=
 JWT_SECRET=existingsecret
 POSTGRES_PASSWORD=existingpg
 REDIS_PASSWORD=existingrd
-API_PORT=3000
+API_HOST_PORT=3000
 PUBLIC_ORIGIN=http://localhost:3000
 EOF
   chmod 600 ".env"

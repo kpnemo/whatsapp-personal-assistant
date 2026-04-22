@@ -103,10 +103,25 @@ jobs:
       - run: pnpm --filter @wpa/db exec prisma generate
       - run: pnpm --filter @wpa/shared --filter @wpa/db build
       - run: pnpm --filter @wpa/db exec prisma migrate deploy
-      - run: pnpm test
+      - run: pnpm -r test -- --coverage
+
+  test-shell:
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.3
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: bash scripts/wpa/_test/run.sh
 
   build:
-    needs: [lint, typecheck, test]
+    needs: [lint, typecheck, test, test-shell]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5

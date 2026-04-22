@@ -14,7 +14,29 @@
 
 ---
 
-## Epic index (6 Epics)
+## Epic index (now 9 — expanded from 6 after UF phase + SEC1 + E2E1)
+
+Insertion order (linearised):
+
+| # | Epic | Blocks |
+|---|---|---|
+| UF0 | `/wpa:start-local` API_HOST_PORT fix | — (pre-flight) |
+| PA1 | `WhatsappSession` schema + migration | PA2, PA3, PA4 |
+| UF1 | shadcn primitive kit (~32 primitives) | UF2, UF3 |
+| UF2 | theme provider + light/dark/system toggle | UF3 |
+| UF3 | refactor screens + kill-switch AlertDialog + invite pre-fill | UF4, PA5 |
+| UF4 | admin Invitations UI (family-member management) | — |
+| SEC1 | rate limiting + SameSite=Strict refresh cookie (closes 8 CodeQL) | — |
+| PA2 | worker Baileys + pair state machine | PA3 |
+| PA3 | session persistence (Redis hot ↔ Postgres cold, encrypted DEK) | PA4, PA5 |
+| PA4 | API `/pair/*` routes + rate limit + audit | PA5 |
+| PA5 | web `/pair` route (ToS gate + QR + polling) | E2E1 |
+| E2E1 | Playwright E2E: auth + kill + pair flows | PA6 |
+| PA6 | smoke refactor + docs + release | — |
+
+---
+
+## Original 6 Epics reference (retained for context)
 
 | # | Epic | Owner | BlockedBy |
 |---|---|---|---|

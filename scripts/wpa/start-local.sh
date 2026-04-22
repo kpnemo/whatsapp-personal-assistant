@@ -153,10 +153,10 @@ step_preflight_docker() {
 
 # ---------------------------------------------------------------------------
 # Step 1b — Detect an already-running healthy stack.
-#   Idempotency guard: if .env records an API_PORT and /healthz on that port
-#   answers 200, reuse the existing stack instead of bootstrapping a second
-#   one on a different port (which would trip admin-registration 409s and
-#   stamp a new port over the running one).
+#   Idempotency guard: if .env records an API_HOST_PORT and /healthz on that
+#   port answers 200, reuse the existing stack instead of bootstrapping a
+#   second one on a different port (which would trip admin-registration 409s
+#   and stamp a new port over the running one).
 # ---------------------------------------------------------------------------
 step_detect_existing() {
   STACK_ALREADY_UP=0
@@ -165,7 +165,7 @@ step_detect_existing() {
   fi
 
   local existing_port
-  existing_port="$(read_env_var "$WPA_WORK_DIR/.env" API_PORT 2>/dev/null || true)"
+  existing_port="$(read_env_var "$WPA_WORK_DIR/.env" API_HOST_PORT 2>/dev/null || true)"
   if [ -z "$existing_port" ]; then
     return 0
   fi
@@ -253,13 +253,18 @@ step_ensure_env() {
 }
 
 # ---------------------------------------------------------------------------
-# Step 4 — Stamp port + origin into .env.
+# Step 4 — Stamp host port + origin into .env.
+#   IMPORTANT: the *container-internal* API port must stay at 3000 (default in
+#   packages/shared/src/env.ts) — docker-compose maps the host-side port to
+#   container:3000 via ${API_HOST_PORT:-3000}:3000. Writing API_PORT here would
+#   make the API inside the container bind to the host port, breaking the
+#   Dockerfile HEALTHCHECK which curls localhost:3000 in-container.
 # ---------------------------------------------------------------------------
 step_stamp_port() {
   cd "$WPA_WORK_DIR"
-  write_env_var .env API_PORT "$API_PORT"
+  write_env_var .env API_HOST_PORT "$API_PORT"
   write_env_var .env PUBLIC_ORIGIN "http://localhost:$API_PORT"
-  log_info "stamped API_PORT=$API_PORT and PUBLIC_ORIGIN=http://localhost:$API_PORT into .env"
+  log_info "stamped API_HOST_PORT=$API_PORT and PUBLIC_ORIGIN=http://localhost:$API_PORT into .env"
 }
 
 # ---------------------------------------------------------------------------

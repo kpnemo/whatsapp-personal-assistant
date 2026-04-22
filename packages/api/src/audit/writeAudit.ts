@@ -1,20 +1,23 @@
 import { type AuditType, getPrisma } from "@wpa/db";
-import { decryptWithKey, encryptWithKey, parseCiphertext, serializeCiphertext } from "@wpa/shared";
+import {
+  writeAudit as writeAuditShared,
+  decodeAuditDetails as decodeShared,
+  encodeAuditDetails as encodeShared,
+} from "@wpa/shared";
 
 import { env } from "../env.js";
 import { logger } from "../logger.js";
 
-export function encodeAuditDetails(key: Buffer, details: unknown): Buffer | undefined {
-  if (details === undefined) return undefined;
-  const ct = encryptWithKey(key, JSON.stringify(details));
-  return Buffer.from(serializeCiphertext(ct));
-}
-
-export function decodeAuditDetails(key: Buffer, bytes: Buffer): unknown {
-  const s = bytes.toString("utf8");
-  const ct = parseCiphertext(s);
-  return JSON.parse(decryptWithKey(key, ct));
-}
+/**
+ * Thin API-side wrapper around `@wpa/shared`'s `writeAudit` that binds the
+ * shared prisma client + master key + pino logger. Route handlers stay
+ * unchanged (`await writeAudit({ userId, type })`).
+ *
+ * The encode/decode helpers are re-exported for tests and any other consumer
+ * that previously imported them from this module.
+ */
+export const encodeAuditDetails = encodeShared;
+export const decodeAuditDetails = decodeShared;
 
 export async function writeAudit(params: {
   userId?: string;
@@ -22,17 +25,13 @@ export async function writeAudit(params: {
   targetRef?: string;
   details?: unknown;
 }): Promise<void> {
-  try {
-    const prisma = getPrisma();
-    await prisma.auditLog.create({
-      data: {
-        userId: params.userId ?? null,
-        type: params.type,
-        targetRef: params.targetRef ?? null,
-        details: encodeAuditDetails(env.MASTER_KEY_BYTES, params.details) ?? null,
-      },
-    });
-  } catch (err) {
-    logger.error({ err, type: params.type }, "audit write failed");
-  }
+  await writeAuditShared({
+    prisma: getPrisma(),
+    masterKey: env.MASTER_KEY_BYTES,
+    ...(params.userId !== undefined ? { userId: params.userId } : {}),
+    type: params.type,
+    ...(params.targetRef !== undefined ? { targetRef: params.targetRef } : {}),
+    ...(params.details !== undefined ? { details: params.details } : {}),
+    logger,
+  });
 }

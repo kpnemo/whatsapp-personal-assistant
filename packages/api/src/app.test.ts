@@ -12,8 +12,11 @@ describe("app", () => {
     expect(res.body).toEqual({ status: "ok" });
   });
 
-  it("GET /api/unknown rejects unauthenticated requests with 401", async () => {
-    const res = await request(app).get("/api/unknown");
+  it("GET /api/auth/me rejects unauthenticated requests with 401", async () => {
+    // /api/unknown now 404s because invitationsRouter's auth guard used to fire
+    // for all /api/* (pre-existing bug — see invitations.ts). /auth/me is the
+    // canonical protected endpoint to probe requireAuth behaviour.
+    const res = await request(app).get("/api/auth/me");
     expect(res.status).toBe(401);
   });
 
