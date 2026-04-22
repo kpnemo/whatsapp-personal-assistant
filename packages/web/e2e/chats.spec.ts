@@ -9,24 +9,18 @@ const FAKE_CONVERSATION_JID = "447700900999@s.whatsapp.net";
 const FAKE_MESSAGE_TEXT = "Hello from the test";
 
 /**
- * Chats page E2E.
+ * /chats page E2E — UI rendering + routing coverage.
  *
- * The e2e stack runs ENTRYPOINT_ROLE=api — no Baileys worker. Instead of
- * relying on the ingest consumer to pick up the Redis stream entry, we:
+ * The e2e stack runs ENTRYPOINT_ROLE=api only (no Baileys worker, no
+ * real ingest consumer), so these specs mock /api/conversations +
+ * /api/events + /api/pair/disconnect via page.route() and verify the
+ * UI behaviour end-to-end from a paired session.
  *
- *   1. Intercept the /api/conversations and /api/messages endpoints with
- *      `page.route()` to simulate what the DB would contain after the worker
- *      processed the ingest stream entry.
- *   2. Inject the fake message into the stream via `ingestFakeMessage()` (same
- *      shortcut as pair.spec.ts writes Redis state directly). This validates the
- *      helper function itself works correctly.
- *   3. Emit a synthetic SSE `message.created` event by fetching the seeded
- *      conversation id from the mock, and triggering a route update — the SPA's
- *      SSE handler calls `queryClient.invalidateQueries` which will re-fetch the
- *      now-updated mock.
- *
- * This mirrors the pattern used in pair.spec.ts: direct state injection + poll
- * until the UI reflects it.
+ * Full pipeline coverage (Redis stream → worker consume → Postgres →
+ * /api/conversations) is exercised by scripts/smoke-test.sh Assertion
+ * 6, which runs the full stack with ENTRYPOINT_ROLE=all. ingestFakeMessage
+ * is called here as smoke for the helper itself; it does not drive
+ * the UI assertions.
  */
 test.describe("chats page", () => {
   let userId: string;

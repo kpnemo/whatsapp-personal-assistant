@@ -90,7 +90,8 @@ echo "smoke: /pair/init ok"
 # without needing a real WhatsApp session.
 # ---------------------------------------------------------------------------
 USER_ID="$(curl -fsS "$BASE/api/auth/me" -H "authorization: Bearer $TOKEN" | jq -r '.id')"
-REDIS_AUTH="$(grep '^REDIS_PASSWORD=' .env | cut -d= -f2)"
+[ -n "$USER_ID" ] && [ "$USER_ID" != "null" ] || { echo "smoke: could not resolve user id"; exit 1; }
+REDIS_AUTH="$(grep '^REDIS_PASSWORD=' .env | cut -d= -f2-)"
 
 docker compose exec -T redis redis-cli -a "$REDIS_AUTH" \
   XADD "wpa:msg:ingest:$USER_ID" '*' raw \
