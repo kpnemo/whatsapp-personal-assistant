@@ -38,7 +38,6 @@ export default tseslint.config(
             "packages/api/vitest.config.ts",
             "packages/db/vitest.config.ts",
             "packages/db/src/index.test.ts",
-            "packages/db/src/p1b.test.ts",
             "packages/db/src/schema.test.ts",
             "packages/test-utils/vitest.config.ts",
             "packages/worker/vitest.config.ts",
