@@ -151,8 +151,18 @@ export function pairRouter(): Router {
     }
     const prisma = getPrisma();
 
-    // Worker's pair command dispatcher only understands "init" | "stop".
-    // Disconnect ≡ stop — closes the Baileys socket + clears Redis state.
+    // Clear the Redis state keys FIRST, synchronously, so /pair/status
+    // immediately reflects the disconnect on the next poll. The UI is the
+    // primary source of "is this paired?" truth for the user, and we can't
+    // rely on the worker racing to update it — if no machine exists in
+    // the worker (e.g. after a restart where the session row was already
+    // `disconnected`), `pairMachine.stop` is a silent no-op and the stale
+    // "paired" state lingers forever.
+    await Promise.all([redis.del(STATE_KEY(userId)), redis.del(QR_KEY(userId))]);
+
+    // Signal the worker to dispose its Baileys socket + ingest consumer.
+    // Worker's pair command dispatcher only understands "init" | "stop";
+    // disconnect ≡ stop.
     await redis.xadd(PAIR_CMD_STREAM, "*", "userId", userId, "type", "stop");
 
     try {

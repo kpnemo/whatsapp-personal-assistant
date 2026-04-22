@@ -103,6 +103,43 @@ describe("POST /api/pair/disconnect", () => {
     expect(obj).toMatchObject({ type: "stop", userId: user.id });
   });
 
+  it("clears wpa:wa-session:{uid}:state + wpa:pair:{uid}:qr on disconnect (no worker required)", async () => {
+    // Regression: previously, disconnect relied on the worker's pair-cmd
+    // dispatcher to call pairMachine.stop(), which in turn cleared the
+    // Redis state key via its onStateChange handler. But if no machine
+    // existed in the worker's memory (e.g. after a restart where restore
+    // skipped a session), pairMachine.stop() was a silent no-op and the
+    // UI kept showing "Connected". API now clears the keys directly.
+    const user = await seedUser(db.prisma, {
+      email: "disconnect-clears-redis@example.com",
+      role: "user",
+      password: "correct-horse-battery-staple",
+    });
+    await db.prisma.whatsappSession.create({
+      data: { userId: user.id, status: "paired" },
+    });
+
+    // Seed the stale Redis state that the UI reads from /pair/status.
+    await redis.client.set(`wpa:wa-session:${user.id}:state`, "paired");
+    await redis.client.set(`wpa:pair:${user.id}:qr`, "stub-qr-png");
+
+    const agent = await withAuth(app, { user: { id: user.id, role: "user" } });
+    const res = await agent.post("/api/pair/disconnect");
+    expect(res.status).toBe(204);
+
+    // Both keys MUST be cleared synchronously — regardless of worker behaviour.
+    const state = await redis.client.get(`wpa:wa-session:${user.id}:state`);
+    const qr = await redis.client.get(`wpa:pair:${user.id}:qr`);
+    expect(state).toBeNull();
+    expect(qr).toBeNull();
+
+    // And the subsequent GET /pair/status reflects the disconnected state.
+    const statusRes = await agent.get("/api/pair/status");
+    expect(statusRes.status).toBe(200);
+    const body = statusRes.body as { state: string };
+    expect(body.state).toBe("none");
+  });
+
   it("returns 429 after exceeding 3 req/hour rate limit on POST /api/pair/disconnect", async () => {
     const user = await seedUser(db.prisma, {
       email: "disconnect-ratelimit@example.com",
