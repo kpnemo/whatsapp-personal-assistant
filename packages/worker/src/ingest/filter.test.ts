@@ -82,4 +82,82 @@ describe("shouldIngest", () => {
     });
     expect(shouldIngest(msg)).toBe(true);
   });
+
+  // Regression: before this, system-only payloads were persisted as
+  // kind=unknown outgoing messages and polluted /chats with empty bubbles
+  // after every pair (initial sync dumps app-state, history, key shares).
+  it("rejects a protocolMessage payload (APP_STATE_SYNC_KEY_SHARE etc.)", () => {
+    const msg = makeMsg({
+      key: { remoteJid: "1@s.whatsapp.net", fromMe: true, id: "p1" },
+      message: {
+        protocolMessage: {
+          type: 6 /* APP_STATE_SYNC_KEY_SHARE */ as never,
+        },
+      } as unknown as WAMessage["message"],
+    });
+    expect(shouldIngest(msg)).toBe(false);
+  });
+
+  it("rejects a HISTORY_SYNC_NOTIFICATION protocolMessage", () => {
+    const msg = makeMsg({
+      key: { remoteJid: "1@s.whatsapp.net", fromMe: true, id: "p2" },
+      message: {
+        protocolMessage: {
+          type: 5 /* HISTORY_SYNC_NOTIFICATION */ as never,
+          historySyncNotification: { fileLength: "1000" } as never,
+        },
+      } as unknown as WAMessage["message"],
+    });
+    expect(shouldIngest(msg)).toBe(false);
+  });
+
+  it("rejects a senderKeyDistributionMessage-only payload", () => {
+    const msg = makeMsg({
+      key: { remoteJid: "grp-1@g.us", fromMe: false, id: "skdm-1" },
+      message: {
+        senderKeyDistributionMessage: {
+          groupId: "grp-1@g.us",
+          axolotlSenderKeyDistributionMessage: Buffer.from([1, 2, 3]) as never,
+        },
+      } as unknown as WAMessage["message"],
+    });
+    expect(shouldIngest(msg)).toBe(false);
+  });
+
+  it("rejects a messageContextInfo-only payload", () => {
+    const msg = makeMsg({
+      message: {
+        messageContextInfo: { deviceListMetadataVersion: 2 } as never,
+      } as unknown as WAMessage["message"],
+    });
+    expect(shouldIngest(msg)).toBe(false);
+  });
+
+  it("accepts a payload with both senderKeyDistributionMessage AND conversation (group text)", () => {
+    // Real group text messages ride alongside a skdm envelope on the first
+    // message after a rekey. We MUST keep these.
+    const msg = makeMsg({
+      key: { remoteJid: "grp-1@g.us", fromMe: false, id: "mix-1" },
+      message: {
+        senderKeyDistributionMessage: {
+          groupId: "grp-1@g.us",
+        } as never,
+        conversation: "hello group",
+      } as unknown as WAMessage["message"],
+    });
+    expect(shouldIngest(msg)).toBe(true);
+  });
+
+  it("accepts a deviceSentMessage payload (outgoing echo)", () => {
+    const msg = makeMsg({
+      key: { remoteJid: "peer@s.whatsapp.net", fromMe: true, id: "dsm-1" },
+      message: {
+        deviceSentMessage: {
+          destinationJid: "peer@s.whatsapp.net",
+          message: { conversation: "sent from my phone" },
+        } as never,
+      } as unknown as WAMessage["message"],
+    });
+    expect(shouldIngest(msg)).toBe(true);
+  });
 });

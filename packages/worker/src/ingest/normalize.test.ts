@@ -192,4 +192,98 @@ describe("normalize", () => {
     );
     expect(result.fromJid).toBe("112233445566-1234567890@g.us");
   });
+
+  // Regression: before this, outgoing echoes of text messages sent from the
+  // phone were stored as kind=unknown and rendered as "—" in /chats. Baileys
+  // wraps outgoing multi-device echoes in `deviceSentMessage`; we must unwrap.
+  it("unwraps deviceSentMessage → conversation as kind=text (outgoing echo)", () => {
+    const result = normalize(
+      makeBase({
+        key: { remoteJid: "peer@s.whatsapp.net", fromMe: true, id: "dsm-1" },
+        message: {
+          deviceSentMessage: {
+            destinationJid: "peer@s.whatsapp.net",
+            message: { conversation: "sent from my phone" },
+          },
+        } as unknown as WAMessage["message"],
+      }),
+    );
+    expect(result.direction).toBe("out");
+    expect(result.body.kind).toBe("text");
+    expect(result.body.text).toBe("sent from my phone");
+  });
+
+  it("unwraps deviceSentMessage → extendedTextMessage", () => {
+    const result = normalize(
+      makeBase({
+        key: { remoteJid: "peer@s.whatsapp.net", fromMe: true, id: "dsm-2" },
+        message: {
+          deviceSentMessage: {
+            destinationJid: "peer@s.whatsapp.net",
+            message: {
+              extendedTextMessage: {
+                text: "long reply",
+                contextInfo: { stanzaId: "QUOTED-1" },
+              },
+            },
+          },
+        } as unknown as WAMessage["message"],
+      }),
+    );
+    expect(result.body.kind).toBe("text");
+    expect(result.body.text).toBe("long reply");
+    expect(result.body.quotedMsgId).toBe("QUOTED-1");
+  });
+
+  it("unwraps ephemeralMessage → inner conversation", () => {
+    const result = normalize(
+      makeBase({
+        message: {
+          ephemeralMessage: {
+            message: { conversation: "disappearing hi" },
+          },
+        } as unknown as WAMessage["message"],
+      }),
+    );
+    expect(result.body.kind).toBe("text");
+    expect(result.body.text).toBe("disappearing hi");
+  });
+
+  it("unwraps viewOnceMessageV2 → inner imageMessage", () => {
+    const result = normalize(
+      makeBase({
+        message: {
+          viewOnceMessageV2: {
+            message: {
+              imageMessage: { mimetype: "image/jpeg", caption: "only once" },
+            },
+          },
+        } as unknown as WAMessage["message"],
+      }),
+    );
+    expect(result.body.kind).toBe("image");
+    expect(result.body.text).toBe("only once");
+    expect(result.body.mediaMeta?.mimeType).toBe("image/jpeg");
+  });
+
+  it("unwraps nested deviceSentMessage → ephemeralMessage → conversation", () => {
+    const result = normalize(
+      makeBase({
+        key: { remoteJid: "peer@s.whatsapp.net", fromMe: true, id: "nested-1" },
+        message: {
+          deviceSentMessage: {
+            destinationJid: "peer@s.whatsapp.net",
+            message: {
+              ephemeralMessage: {
+                message: { conversation: "outgoing disappearing" },
+              },
+            },
+          },
+        } as unknown as WAMessage["message"],
+      }),
+    );
+    expect(result.direction).toBe("out");
+    expect(result.body.kind).toBe("text");
+    expect(result.body.text).toBe("outgoing disappearing");
+  });
 });

@@ -118,6 +118,15 @@ function optLongKey<K extends string>(k: K, v: unknown): Record<K, number> | Rec
 }
 
 function extractBody(msg: RawMessage): NormalizedMessage["body"] {
+  // Unwrap Baileys multi-device envelopes that carry a real inner message.
+  // These shapes are common for outgoing echoes (deviceSentMessage) and for
+  // disappearing / view-once variants. Unwrap recursively so a
+  // deviceSentMessage → ephemeralMessage → conversation chain resolves.
+  const inner = unwrapEnvelope(msg);
+  if (inner !== null) {
+    return extractBody(inner);
+  }
+
   // Plain text
   if (typeof msg.conversation === "string") {
     return { kind: "text", text: msg.conversation };
@@ -230,4 +239,32 @@ function extractBody(msg: RawMessage): NormalizedMessage["body"] {
   }
 
   return { kind: "unknown" };
+}
+
+/**
+ * Return the inner `message` payload if `msg` is a Baileys envelope wrapper
+ * (deviceSentMessage for outgoing echoes, ephemeralMessage / viewOnceMessage
+ * / viewOnceMessageV2 / viewOnceMessageV2Extension for
+ * disappearing / view-once variants), otherwise null.
+ *
+ * Using `Record<string, unknown>` indexing here because Baileys's generated
+ * types don't perfectly model all the optional envelope fields, but their
+ * runtime shape is always `{ message?: WAMessage["message"] }`.
+ */
+function unwrapEnvelope(msg: RawMessage): RawMessage | null {
+  const m = msg as unknown as Record<string, unknown>;
+  const wrapperKeys = [
+    "deviceSentMessage",
+    "ephemeralMessage",
+    "viewOnceMessage",
+    "viewOnceMessageV2",
+    "viewOnceMessageV2Extension",
+  ];
+  for (const key of wrapperKeys) {
+    const wrapper = m[key] as { message?: RawMessage } | undefined;
+    if (wrapper?.message) {
+      return wrapper.message;
+    }
+  }
+  return null;
 }
