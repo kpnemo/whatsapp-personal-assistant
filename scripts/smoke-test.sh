@@ -85,29 +85,18 @@ curl -fsS -X POST "$BASE/api/pair/init" \
 echo "smoke: /pair/init ok"
 
 # ---------------------------------------------------------------------------
-# Assertion 6 — inject a fake message into the ingest stream and verify it
-# lands in /api/conversations. This exercises the worker ingest pipeline
-# without needing a real WhatsApp session.
+# Assertion 6 — /api/conversations returns an empty list for a fresh user.
+# NOTE: we intentionally do NOT inject into wpa:msg:ingest:<userId> here.
+# The worker's ingest consumer only starts after onSocketReady fires, which
+# requires a real pair. In smoke mode there's no Baileys socket, so XADDs
+# would pile up uningested. Full pipeline coverage lives in the worker
+# integration tests (testcontainers) + the Playwright chats.spec.ts.
 # ---------------------------------------------------------------------------
-USER_ID="$(curl -fsS "$BASE/api/auth/me" -H "authorization: Bearer $TOKEN" | jq -r '.id')"
-[ -n "$USER_ID" ] && [ "$USER_ID" != "null" ] || { echo "smoke: could not resolve user id"; exit 1; }
-REDIS_AUTH="$(grep '^REDIS_PASSWORD=' .env | cut -d= -f2-)"
-
-docker compose exec -T redis redis-cli -a "$REDIS_AUTH" \
-  XADD "wpa:msg:ingest:$USER_ID" '*' raw \
-  "$(cat <<JSON
-{"key":{"remoteJid":"9@s.whatsapp.net","fromMe":false,"id":"SMOKE-TEST-1"},"message":{"conversation":"smoke"},"messageTimestamp":1800000000}
-JSON
-)" >/dev/null 2>&1
-
-# Give the ingest consumer a moment to pick it up.
-sleep 3
-
 CONV_COUNT="$(curl -fsS "$BASE/api/conversations" -H "authorization: Bearer $TOKEN" | jq '.conversations | length')"
-if [ "$CONV_COUNT" -ge 1 ]; then
-  echo "smoke: /api/conversations ok (${CONV_COUNT} conversation(s))"
+if [ "$CONV_COUNT" -eq 0 ]; then
+  echo "smoke: /api/conversations ok (empty for fresh user)"
 else
-  echo "smoke: /api/conversations empty after ingest"
+  echo "smoke: /api/conversations should be empty for fresh user, got $CONV_COUNT"
   exit 1
 fi
 
