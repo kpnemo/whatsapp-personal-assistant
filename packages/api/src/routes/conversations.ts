@@ -53,7 +53,7 @@ export function conversationsRouter(): Router {
         userId,
         ...(cursor ? { lastMessageAt: { lt: new Date(cursor) } } : {}),
       },
-      orderBy: [{ lastMessageAt: "desc" }, { id: "asc" }],
+      orderBy: [{ lastMessageAt: { sort: "desc", nulls: "last" } }, { id: "asc" }],
       take: limit + 1,
     });
 

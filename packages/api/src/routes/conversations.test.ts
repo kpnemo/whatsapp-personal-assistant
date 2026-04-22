@@ -219,6 +219,36 @@ describe("GET /api/conversations", () => {
     expect(conversations[0]!.subtitle).toBeUndefined();
   });
 
+  it("returns subtitle 'not in contacts' for a DM with no WaContact row", async () => {
+    const user = await seedUser(db.prisma, {
+      email: "conv-dm-unknown@example.com",
+      role: "user",
+      password: "correct-horse-battery-staple",
+    });
+
+    await db.prisma.conversation.create({
+      data: {
+        userId: user.id,
+        jid: "999888777@s.whatsapp.net",
+        type: "dm",
+        lastMessageAt: new Date(),
+      },
+    });
+
+    const agent = await withAuth(app, { user: { id: user.id, role: "user" } });
+    const res = await agent.get("/api/conversations");
+    expect(res.status).toBe(200);
+
+    const { conversations } = res.body as {
+      conversations: { jid: string; title: string; subtitle?: string }[];
+    };
+    const conv = conversations.find((c) => c.jid === "999888777@s.whatsapp.net");
+    expect(conv).toBeDefined();
+    expect(conv!.subtitle).toBe("not in contacts");
+    // title fallback should be the formatted jid ("+999888777")
+    expect(conv!.title).toMatch(/^\+/);
+  });
+
   it("Group: shows decrypted group subject as title", async () => {
     const user = await seedUser(db.prisma, {
       email: "conv-group@example.com",
