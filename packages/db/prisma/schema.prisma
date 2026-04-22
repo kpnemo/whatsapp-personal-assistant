@@ -83,18 +83,18 @@ model RefreshToken {
 
 enum AuditType {
   ai_reply
-  rule_fired
   decrypt
   ingest
+  invite_consume
+  invite_create
+  kill
   login
   login_failed
   logout
-  register
-  invite_create
-  invite_consume
-  setting_change
-  kill
   pair
+  register
+  rule_fired
+  setting_change
   unpair
 }
 
@@ -153,6 +153,7 @@ model WaContact {
   updatedAt  DateTime @updatedAt
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@unique([userId, jid])
+  @@map("wa_contacts")
 }
 
 model WaGroup {
@@ -165,6 +166,7 @@ model WaGroup {
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   @@unique([userId, jid])
+  @@map("wa_groups")
 }
 
 model Conversation {
@@ -178,6 +180,7 @@ model Conversation {
   messages       Message[]
   @@unique([userId, jid])
   @@index([userId, lastMessageAt])
+  @@map("conversations")
 }
 
 model Message {
@@ -194,4 +197,5 @@ model Message {
   conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   @@unique([conversationId, waMessageId])
   @@index([conversationId, timestamp])
+  @@map("messages")
 }
