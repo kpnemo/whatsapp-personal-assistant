@@ -6,6 +6,20 @@ import { afterEach } from "vitest";
 // jsdom doesn't implement these Radix/cmdk-used APIs; stub them so
 // dialog/select/command/etc can render without throwing.
 if (typeof window !== "undefined") {
+  if (!window.ResizeObserver) {
+    window.ResizeObserver = class ResizeObserver {
+      observe(): void {
+        /* stub */
+      }
+      unobserve(): void {
+        /* stub */
+      }
+      disconnect(): void {
+        /* stub */
+      }
+    };
+  }
+
   if (!window.matchMedia) {
     window.matchMedia = (query: string): MediaQueryList => ({
       matches: false,

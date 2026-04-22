@@ -144,4 +144,67 @@ export const pair = {
   // (bearer token attached). Browsers cannot send Authorization headers on
   // `<img src="...">` requests, so we must fetch + render as a data URL.
   qr: () => apiFetch<PairQrResponse>("/pair/qr"),
+  disconnect: () => apiFetch<void>("/pair/disconnect", { method: "POST" }),
+};
+
+// ---------------------------------------------------------------------------
+// Conversations + Messages (P1-B IB5 API)
+// ---------------------------------------------------------------------------
+
+export interface ConversationSummary {
+  id: string;
+  jid: string;
+  type: string;
+  lastMessageAt: string | null;
+  title: string;
+  subtitle?: string;
+}
+
+export interface ConversationListResponse {
+  conversations: ConversationSummary[];
+  nextCursor: string | null;
+}
+
+export interface MessageBody {
+  kind: string;
+  text?: string;
+  quotedMsgId?: string;
+  mentions?: string[];
+  mediaMeta?: Record<string, unknown>;
+}
+
+export interface MessageRecord {
+  id: string;
+  waMessageId: string;
+  fromJid: string;
+  senderName?: string;
+  direction: "in" | "out";
+  timestamp: string;
+  body: MessageBody;
+  hasMedia: boolean;
+}
+
+export interface MessageListResponse {
+  messages: MessageRecord[];
+  hasMore: boolean;
+}
+
+export const chats = {
+  list: (cursor?: string) =>
+    apiFetch<ConversationListResponse>(
+      `/conversations${cursor ? `?limit=50&cursor=${encodeURIComponent(cursor)}` : "?limit=50"}`,
+    ),
+  messages: (conversationId: string, before?: string) =>
+    apiFetch<MessageListResponse>(
+      `/conversations/${encodeURIComponent(conversationId)}/messages${before ? `?limit=50&before=${encodeURIComponent(before)}` : "?limit=50"}`,
+    ),
+};
+
+export const media = {
+  /** Returns the URL for fetching raw media bytes. Used as <img src> / <video src> etc. */
+  url: (messageId: string): string => {
+    const token = getAccessToken();
+    const base = `/api/media/${encodeURIComponent(messageId)}`;
+    return token ? `${base}?token=${encodeURIComponent(token)}` : base;
+  },
 };

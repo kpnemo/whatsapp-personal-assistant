@@ -1,4 +1,11 @@
-import { ChevronDown, LayoutDashboard, Mail, ShieldOff, Smartphone } from "lucide-react";
+import {
+  ChevronDown,
+  LayoutDashboard,
+  Mail,
+  MessageSquare,
+  ShieldOff,
+  Smartphone,
+} from "lucide-react";
 import { type JSX, type ReactNode, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -41,6 +48,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Dashboard", Icon: LayoutDashboard },
   { to: "/pair", label: "Pair WhatsApp", Icon: Smartphone },
+  { to: "/chats", label: "Chats", Icon: MessageSquare },
   { to: "/admin/invitations", label: "Invitations", Icon: Mail, adminOnly: true },
 ];
 

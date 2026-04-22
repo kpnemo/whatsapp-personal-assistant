@@ -2,6 +2,7 @@ import type { JSX } from "react";
 import { Route, Routes } from "react-router";
 
 import { AdminInvitations } from "./routes/admin/Invitations";
+import { Chats } from "./routes/Chats";
 import { Dashboard } from "./routes/Dashboard";
 import { Login } from "./routes/Login";
 import { Pair } from "./routes/Pair";
@@ -17,6 +18,7 @@ export function App(): JSX.Element {
       <Route element={<RequireAuth />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/pair" element={<Pair />} />
+        <Route path="/chats" element={<Chats />} />
         <Route element={<RequireAdmin />}>
           <Route path="/admin/invitations" element={<AdminInvitations />} />
         </Route>

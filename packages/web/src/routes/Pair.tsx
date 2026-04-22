@@ -5,16 +5,6 @@ import { useNavigate } from "react-router";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,6 +17,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { ApiError, pair, parseRateLimitRetryAfter, type PairState } from "../api/client";
+import { DisconnectDialog } from "../components/DisconnectDialog";
 
 type UiState =
   | "tos_gate"
@@ -240,28 +231,7 @@ export function Pair(): JSX.Element {
         })}
       </Card>
 
-      <AlertDialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Disconnect coming soon</AlertDialogTitle>
-            <AlertDialogDescription>
-              Disconnect + re-pair lands in P1-B. For now, if you need to detach, use the kill
-              switch in the top bar and restart pairing.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Close</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={(event) => {
-                event.preventDefault();
-                setDisconnectOpen(false);
-              }}
-            >
-              Got it
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DisconnectDialog open={disconnectOpen} onOpenChange={setDisconnectOpen} />
     </div>
   );
 }
