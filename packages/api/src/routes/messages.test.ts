@@ -262,6 +262,33 @@ describe("messages routes", () => {
 
   // ---- GET /api/messages/:id ----
 
+  it("returns 429 after exceeding 120 req/min on GET /api/conversations/:id/messages", async () => {
+    const user = await seedUser(db.prisma, {
+      email: "msg-list-ratelimit@example.com",
+      role: "user",
+      password: "correct-horse-battery-staple",
+    });
+
+    const conv = await db.prisma.conversation.create({
+      data: { userId: user.id, jid: "rl-list@s.whatsapp.net", type: "dm" },
+    });
+
+    const agent = await withAuth(app, { user: { id: user.id, role: "user" } });
+
+    // Exhaust the 120-point bucket.
+    for (let i = 0; i < 120; i++) {
+      const res = await agent.get(`/api/conversations/${conv.id}/messages`);
+      expect(res.status).toBe(200);
+    }
+
+    // 121st request must be rate-limited.
+    const over = await agent.get(`/api/conversations/${conv.id}/messages`);
+    expect(over.status).toBe(429);
+    expect(over.headers["retry-after"]).toBeDefined();
+    const body = over.body as { error: string };
+    expect(body.error).toBe("rate_limited");
+  });
+
   it("GET /api/messages/:id returns 401 without auth", async () => {
     const res = await request(app).get("/api/messages/some-id");
     expect(res.status).toBe(401);
@@ -309,6 +336,45 @@ describe("messages routes", () => {
     const agent = await withAuth(app, { user: { id: user.id, role: "user" } });
     const res = await agent.get("/api/messages/nonexistent-id");
     expect(res.status).toBe(404);
+  });
+
+  it("returns 429 after exceeding 120 req/min on GET /api/messages/:id", async () => {
+    const user = await seedUser(db.prisma, {
+      email: "msg-get-ratelimit@example.com",
+      role: "user",
+      password: "correct-horse-battery-staple",
+    });
+    const dek = getUserDek(user.encryptedDek);
+
+    const conv = await db.prisma.conversation.create({
+      data: { userId: user.id, jid: "rl-get@s.whatsapp.net", type: "dm" },
+    });
+
+    const msg = await db.prisma.message.create({
+      data: {
+        conversationId: conv.id,
+        waMessageId: "rl-get-wamsg",
+        fromJid: "rl-get@s.whatsapp.net",
+        direction: "in",
+        timestamp: new Date(),
+        body: encryptField(dek, JSON.stringify({ kind: "text", text: "rate limit test" })),
+      },
+    });
+
+    const agent = await withAuth(app, { user: { id: user.id, role: "user" } });
+
+    // Exhaust the 120-point bucket.
+    for (let i = 0; i < 120; i++) {
+      const res = await agent.get(`/api/messages/${msg.id}`);
+      expect(res.status).toBe(200);
+    }
+
+    // 121st request must be rate-limited.
+    const over = await agent.get(`/api/messages/${msg.id}`);
+    expect(over.status).toBe(429);
+    expect(over.headers["retry-after"]).toBeDefined();
+    const body = over.body as { error: string };
+    expect(body.error).toBe("rate_limited");
   });
 
   it("GET /api/messages/:id returns the correct message with decrypted body", async () => {

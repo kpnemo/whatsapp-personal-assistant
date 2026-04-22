@@ -318,6 +318,29 @@ describe("GET /api/conversations", () => {
     expect(new Set(allJids).size).toBe(5);
   });
 
+  it("returns 429 after exceeding 60 req/min rate limit on GET /api/conversations", async () => {
+    const user = await seedUser(db.prisma, {
+      email: "conv-ratelimit@example.com",
+      role: "user",
+      password: "correct-horse-battery-staple",
+    });
+
+    const agent = await withAuth(app, { user: { id: user.id, role: "user" } });
+
+    // Exhaust the 60-point bucket.
+    for (let i = 0; i < 60; i++) {
+      const res = await agent.get("/api/conversations");
+      expect(res.status).toBe(200);
+    }
+
+    // 61st request must be rate-limited.
+    const over = await agent.get("/api/conversations");
+    expect(over.status).toBe(429);
+    expect(over.headers["retry-after"]).toBeDefined();
+    const body = over.body as { error: string };
+    expect(body.error).toBe("rate_limited");
+  });
+
   it("user B's conversations never appear for user A", async () => {
     const userA = await seedUser(db.prisma, {
       email: "conv-iso-a@example.com",

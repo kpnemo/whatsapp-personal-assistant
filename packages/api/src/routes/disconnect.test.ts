@@ -101,6 +101,29 @@ describe("POST /api/pair/disconnect", () => {
     expect(obj).toMatchObject({ type: "disconnect", userId: user.id });
   });
 
+  it("returns 429 after exceeding 3 req/hour rate limit on POST /api/pair/disconnect", async () => {
+    const user = await seedUser(db.prisma, {
+      email: "disconnect-ratelimit@example.com",
+      role: "user",
+      password: "correct-horse-battery-staple",
+    });
+
+    const agent = await withAuth(app, { user: { id: user.id, role: "user" } });
+
+    // Exhaust the 3-point bucket (each returns 204).
+    for (let i = 0; i < 3; i++) {
+      const res = await agent.post("/api/pair/disconnect");
+      expect(res.status).toBe(204);
+    }
+
+    // 4th request must be rate-limited.
+    const over = await agent.post("/api/pair/disconnect");
+    expect(over.status).toBe(429);
+    expect(over.headers["retry-after"]).toBeDefined();
+    const body = over.body as { error: string };
+    expect(body.error).toBe("rate_limited");
+  });
+
   it("returns 204 even when the user has never paired", async () => {
     // No WhatsappSession row created for this user — tests P2025 idempotency.
     const user = await seedUser(db.prisma, {

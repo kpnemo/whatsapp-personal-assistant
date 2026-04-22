@@ -255,6 +255,49 @@ describe("GET /api/media/:messageId", () => {
     expect(res.headers["cache-control"]).toContain("private");
   });
 
+  it("returns 429 after exceeding 30 req/min rate limit on GET /api/media/:messageId", async () => {
+    const user = await seedUser(db.prisma, {
+      email: "media-ratelimit@example.com",
+      role: "user",
+      password: "correct-horse-battery-staple",
+    });
+    const dek = getUserDek(user.encryptedDek);
+
+    const conv = await db.prisma.conversation.create({
+      data: { userId: user.id, jid: "rl-media@s.whatsapp.net", type: "dm" },
+    });
+
+    // A message with no mediaRef so each request returns 404 (not_found from DB is 404 too).
+    // The rate limiter fires before the handler inspects mediaRef, so each request
+    // still consumes a point regardless of the 404 response.
+    const msg = await db.prisma.message.create({
+      data: {
+        conversationId: conv.id,
+        waMessageId: "rl-media-wamsg",
+        fromJid: "rl-media@s.whatsapp.net",
+        direction: "in",
+        timestamp: new Date(),
+        body: encryptField(dek, JSON.stringify({ kind: "text", text: "no media" })),
+        // no mediaRef — will 404 but rate-limiter fires first
+      },
+    });
+
+    const agent = await withAuth(app, { user: { id: user.id, role: "user" } });
+
+    // Exhaust the 30-point bucket (each returns 404 no_media but still counts).
+    for (let i = 0; i < 30; i++) {
+      const res = await agent.get(`/api/media/${msg.id}`);
+      expect(res.status).toBe(404);
+    }
+
+    // 31st request must be rate-limited before hitting the handler.
+    const over = await agent.get(`/api/media/${msg.id}`);
+    expect(over.status).toBe(429);
+    expect(over.headers["retry-after"]).toBeDefined();
+    const body = over.body as { error: string };
+    expect(body.error).toBe("rate_limited");
+  });
+
   it("round-trips binary bytes (base64 convention)", async () => {
     const user = await seedUser(db.prisma, {
       email: "media-binary@example.com",

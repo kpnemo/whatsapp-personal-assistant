@@ -330,6 +330,82 @@ describe("GET /api/events — SSE stream", () => {
     expect(Number(counter ?? "0")).toBe(0);
   });
 
+  // 5b. Rate-limit on connect attempts ─────────────────────────────────────
+  it("returns 429 after exceeding 10 connect attempts per minute on GET /api/events", async () => {
+    const user = await seedUser(db.prisma, {
+      email: "sse-ratelimit@example.com",
+      role: "user",
+      password: "correct-horse-battery-staple",
+    });
+
+    const token = await issueAccessToken(TEST_JWT_SECRET, { sub: user.id, role: "user" });
+    const authHeader = `Bearer ${token}`;
+
+    // Open 10 SSE streams quickly (each consumes 1 point). Each is destroyed
+    // after 50 ms so they don't pile up as live connections.
+    for (let i = 0; i < 10; i++) {
+      await listenSse(server, "/api/events", authHeader, 50);
+    }
+
+    // 11th connection attempt must be rate-limited.
+    // The 429 response is a non-streaming JSON reply, so listenSse resolves
+    // immediately when the server closes the response after sending the JSON body.
+    const over = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+      const addr = server.address() as { port: number };
+      let statusCode = 0;
+      let body = "";
+      let settled = false;
+
+      const settle = (val: { status: number; body: string }) => {
+        if (!settled) {
+          settled = true;
+          resolve(val);
+        }
+      };
+      const bail = (err: Error) => {
+        if (!settled) {
+          settled = true;
+          reject(err);
+        }
+      };
+
+      const safety = setTimeout(() => {
+        req.destroy();
+        settle({ status: statusCode, body });
+      }, 5_000);
+
+      const req = http.request(
+        {
+          host: "127.0.0.1",
+          port: addr.port,
+          path: "/api/events",
+          method: "GET",
+          headers: { Accept: "text/event-stream", Authorization: authHeader },
+        },
+        (res) => {
+          statusCode = res.statusCode ?? 0;
+          res.on("data", (chunk: Buffer) => {
+            body += chunk.toString();
+          });
+          res.on("end", () => {
+            clearTimeout(safety);
+            settle({ status: statusCode, body });
+          });
+          res.on("error", bail);
+        },
+      );
+      req.on("error", (err) => {
+        clearTimeout(safety);
+        bail(err);
+      });
+      req.end();
+    });
+
+    expect(over.status).toBe(429);
+    const parsed = JSON.parse(over.body) as { error: string };
+    expect(parsed.error).toBe("rate_limited");
+  });
+
   // 6. Cross-user isolation ──────────────────────────────────────────────────
   it("does not deliver events published on another user's channel", async () => {
     const userA = await seedUser(db.prisma, {

@@ -6,6 +6,8 @@ import { z } from "zod";
 import { env } from "../env.js";
 import { logger } from "../logger.js";
 import { type AuthedResponse, requireAuth } from "../middleware/auth.js";
+import { createRateLimiter } from "../middleware/rate-limit.js";
+import { getRedis } from "../redis.js";
 
 const listQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
@@ -83,103 +85,124 @@ function shapeMessage(
 export function messagesRouter(): Router {
   const r = Router();
 
+  const listLimiter = createRateLimiter({
+    redis: getRedis(),
+    keyPrefix: "rl:messages:list",
+    points: 120,
+    duration: 60,
+    keyBy: "user",
+  });
+
+  const getLimiter = createRateLimiter({
+    redis: getRedis(),
+    keyPrefix: "rl:messages:get",
+    points: 120,
+    duration: 60,
+    keyBy: "user",
+  });
+
   /**
    * GET /conversations/:id/messages
    * Paginated list of messages for a conversation.
    */
-  r.get("/conversations/:id/messages", requireAuth, async (req: Request, res: AuthedResponse) => {
-    const userId = res.locals.user?.sub;
-    if (!userId) {
-      res.status(401).json({ error: "unauthorized" });
-      return;
-    }
-
-    const parsed = listQuerySchema.safeParse(req.query);
-    if (!parsed.success) {
-      res.status(400).json({ error: "invalid_query" });
-      return;
-    }
-
-    const { limit, before } = parsed.data;
-    const conversationId = req.params.id as string;
-
-    const prisma = getPrisma();
-
-    // Ownership check — 404 on wrong user (don't leak existence via 403).
-    const conversation = await prisma.conversation.findFirst({
-      where: { id: conversationId, userId },
-    });
-    if (!conversation) {
-      res.status(404).json({ error: "not_found" });
-      return;
-    }
-
-    let dek: Buffer;
-    try {
-      dek = await getUserDek(userId);
-    } catch (err) {
-      logger.error({ err, userId }, "messages list: DEK unwrap failed");
-      res.status(500).json({ error: "internal_error" });
-      return;
-    }
-
-    const rows = await prisma.message.findMany({
-      where: {
-        conversationId,
-        ...(before ? { timestamp: { lt: new Date(before) } } : {}),
-      },
-      orderBy: { timestamp: "desc" },
-      take: limit + 1,
-      select: {
-        id: true,
-        waMessageId: true,
-        fromJid: true,
-        direction: true,
-        timestamp: true,
-        body: true,
-        mediaRef: true,
-      },
-    });
-
-    const hasMore = rows.length > limit;
-    const page = rows.slice(0, limit);
-
-    // Batch-fetch contact names for fromJids in this page.
-    const fromJids = [...new Set(page.map((m) => m.fromJid))];
-    const contacts = await prisma.waContact.findMany({
-      where: { userId, jid: { in: fromJids } },
-      select: { jid: true, name: true },
-    });
-    const contactMap = new Map(contacts.map((c) => [c.jid, c]));
-
-    const messages = page.map((row) => {
-      let senderName: string | undefined;
-      const contact = contactMap.get(row.fromJid);
-      if (contact?.name) {
-        try {
-          senderName = decryptWithKey(
-            dek,
-            parseCiphertext(Buffer.from(contact.name).toString("utf8")),
-          );
-        } catch {
-          // Omit senderName on decrypt failure
-        }
+  r.get(
+    "/conversations/:id/messages",
+    requireAuth,
+    listLimiter,
+    async (req: Request, res: AuthedResponse) => {
+      const userId = res.locals.user?.sub;
+      if (!userId) {
+        res.status(401).json({ error: "unauthorized" });
+        return;
       }
-      return shapeMessage(
-        { ...row, body: Buffer.from(row.body), mediaRef: row.mediaRef },
-        dek,
-        senderName,
-      );
-    });
 
-    res.json({ messages, hasMore });
-  });
+      const parsed = listQuerySchema.safeParse(req.query);
+      if (!parsed.success) {
+        res.status(400).json({ error: "invalid_query" });
+        return;
+      }
+
+      const { limit, before } = parsed.data;
+      const conversationId = req.params.id as string;
+
+      const prisma = getPrisma();
+
+      // Ownership check — 404 on wrong user (don't leak existence via 403).
+      const conversation = await prisma.conversation.findFirst({
+        where: { id: conversationId, userId },
+      });
+      if (!conversation) {
+        res.status(404).json({ error: "not_found" });
+        return;
+      }
+
+      let dek: Buffer;
+      try {
+        dek = await getUserDek(userId);
+      } catch (err) {
+        logger.error({ err, userId }, "messages list: DEK unwrap failed");
+        res.status(500).json({ error: "internal_error" });
+        return;
+      }
+
+      const rows = await prisma.message.findMany({
+        where: {
+          conversationId,
+          ...(before ? { timestamp: { lt: new Date(before) } } : {}),
+        },
+        orderBy: { timestamp: "desc" },
+        take: limit + 1,
+        select: {
+          id: true,
+          waMessageId: true,
+          fromJid: true,
+          direction: true,
+          timestamp: true,
+          body: true,
+          mediaRef: true,
+        },
+      });
+
+      const hasMore = rows.length > limit;
+      const page = rows.slice(0, limit);
+
+      // Batch-fetch contact names for fromJids in this page.
+      const fromJids = [...new Set(page.map((m) => m.fromJid))];
+      const contacts = await prisma.waContact.findMany({
+        where: { userId, jid: { in: fromJids } },
+        select: { jid: true, name: true },
+      });
+      const contactMap = new Map(contacts.map((c) => [c.jid, c]));
+
+      const messages = page.map((row) => {
+        let senderName: string | undefined;
+        const contact = contactMap.get(row.fromJid);
+        if (contact?.name) {
+          try {
+            senderName = decryptWithKey(
+              dek,
+              parseCiphertext(Buffer.from(contact.name).toString("utf8")),
+            );
+          } catch {
+            // Omit senderName on decrypt failure
+          }
+        }
+        return shapeMessage(
+          { ...row, body: Buffer.from(row.body), mediaRef: row.mediaRef },
+          dek,
+          senderName,
+        );
+      });
+
+      res.json({ messages, hasMore });
+    },
+  );
 
   /**
    * GET /messages/:id
    * Single message by id.
    */
-  r.get("/messages/:id", requireAuth, async (req: Request, res: AuthedResponse) => {
+  r.get("/messages/:id", requireAuth, getLimiter, async (req: Request, res: AuthedResponse) => {
     const userId = res.locals.user?.sub;
     if (!userId) {
       res.status(401).json({ error: "unauthorized" });

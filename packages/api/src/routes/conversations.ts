@@ -6,6 +6,8 @@ import { z } from "zod";
 import { env } from "../env.js";
 import { logger } from "../logger.js";
 import { type AuthedResponse, requireAuth } from "../middleware/auth.js";
+import { createRateLimiter } from "../middleware/rate-limit.js";
+import { getRedis } from "../redis.js";
 
 /** Opaque base64url compound cursor — encodes { ts, id } for tie-safe pagination. */
 interface DecodedCursor {
@@ -48,7 +50,15 @@ const querySchema = z.object({
 export function conversationsRouter(): Router {
   const r = Router();
 
-  r.get("/conversations", requireAuth, async (req: Request, res: AuthedResponse) => {
+  const listLimiter = createRateLimiter({
+    redis: getRedis(),
+    keyPrefix: "rl:conversations:list",
+    points: 60,
+    duration: 60,
+    keyBy: "user",
+  });
+
+  r.get("/conversations", requireAuth, listLimiter, async (req: Request, res: AuthedResponse) => {
     const userId = res.locals.user?.sub;
     if (!userId) {
       res.status(401).json({ error: "unauthorized" });

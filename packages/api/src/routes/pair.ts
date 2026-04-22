@@ -42,10 +42,19 @@ export function pairRouter(): Router {
   const r = Router();
   const redis = getRedis();
 
-  // Rate-limit /init only — status + qr are idempotent reads.
+  // Rate-limit /init and /disconnect — both mutate session state.
   const initLimiter = createRateLimiter({
     redis,
     keyPrefix: "rl:pair:init",
+    points: 3,
+    duration: 60 * 60,
+    keyBy: "user",
+    blockDuration: 60 * 60,
+  });
+
+  const disconnectLimiter = createRateLimiter({
+    redis,
+    keyPrefix: "rl:pair:disconnect",
     points: 3,
     duration: 60 * 60,
     keyBy: "user",
@@ -134,7 +143,7 @@ export function pairRouter(): Router {
     });
   });
 
-  r.post("/pair/disconnect", async (_req: Request, res: AuthedResponse) => {
+  r.post("/pair/disconnect", disconnectLimiter, async (_req: Request, res: AuthedResponse) => {
     const userId = res.locals.user?.sub;
     if (!userId) {
       res.status(401).json({ error: "unauthorized" });

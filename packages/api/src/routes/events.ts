@@ -18,6 +18,7 @@ import type { Redis } from "ioredis";
 import { env } from "../env.js";
 import { logger } from "../logger.js";
 import { requireAuth, type AuthedResponse } from "../middleware/auth.js";
+import { createRateLimiter } from "../middleware/rate-limit.js";
 import { getRedis, createSubscriberClient } from "../redis.js";
 
 /**
@@ -38,7 +39,15 @@ const COUNTER_TTL_SECONDS = 65 * 60; // 65 min
 export function eventsRouter(): Router {
   const r = Router();
 
-  r.get("/events", requireAuth, async (req: Request, res: AuthedResponse) => {
+  const connectLimiter = createRateLimiter({
+    redis: getRedis(),
+    keyPrefix: "rl:events:connect",
+    points: 10,
+    duration: 60,
+    keyBy: "user",
+  });
+
+  r.get("/events", requireAuth, connectLimiter, async (req: Request, res: AuthedResponse) => {
     const userId = res.locals.user!.sub;
     const redis = getRedis();
     const counterKey = `${SSE_COUNTER_PREFIX}${userId}`;
