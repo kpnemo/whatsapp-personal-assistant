@@ -62,3 +62,25 @@ export async function apiFetch<T = unknown>(path: string, init: RequestInit = {}
 export function postJson<T>(path: string, body: Json): Promise<T> {
   return apiFetch<T>(path, { method: "POST", body: JSON.stringify(body) });
 }
+
+export interface InvitationRecord {
+  id: string;
+  email: string;
+  expiresAt: string;
+  usedAt: string | null;
+  createdAt: string;
+}
+
+export interface InvitationCreatedResponse {
+  id: string;
+  email: string;
+  expiresAt: string;
+  createdAt: string;
+  token: string;
+}
+
+export const invitations = {
+  create: (body: { email: string; expiresInDays?: number }) =>
+    postJson<InvitationCreatedResponse>("/invitations", body),
+  list: () => apiFetch<InvitationRecord[]>("/invitations"),
+};
