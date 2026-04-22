@@ -166,12 +166,13 @@ describe("PairMachine", () => {
     const m = new PairMachine(events, { socketFactory: makeFactory(socket) });
     await m.start("u1", null);
     socket.emit({ qr: "qr-1" });
-    await flushMicrotasks();
     socket.emit({ qr: "qr-2" });
-    await flushMicrotasks();
+    // Wait for BOTH qrcode.toBuffer async encodes to resolve. The PNG encode
+    // goes through pngjs→zlib on libuv and is not microtask-synchronous, so a
+    // fixed `flushMicrotasks` count can race on slow CI. Poll instead.
+    await vi.waitFor(() => expect(events.qrs).toHaveLength(2), { timeout: 5_000 });
     expect(m.getState("u1")).toBe("awaiting_scan");
-    expect(events.qrs).toHaveLength(2);
-    // No duplicate state change (only one awaiting_scan transition)
+    // No duplicate state change (only one awaiting_scan transition).
     expect(events.stateChanges.filter((s) => s.next === "awaiting_scan")).toHaveLength(1);
   });
 
