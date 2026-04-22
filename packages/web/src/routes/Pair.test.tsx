@@ -170,13 +170,52 @@ afterEach(() => {
 
 describe("Pair page", () => {
   it("renders the ToS gate with destructive alert and initialize button", () => {
-    installFetchMock({});
+    installFetchMock({ status: { state: "none" } });
     renderPair();
     expect(screen.getByRole("alert")).toHaveTextContent(/terms-of-service notice/i);
     expect(screen.getByRole("alert")).toHaveTextContent(/violates whatsapp's terms of service/i);
     expect(
       screen.getByRole("button", { name: /i understand, initialize pairing/i }),
     ).toBeInTheDocument();
+  });
+
+  it("skips the ToS gate and jumps to Connected when /status reports already-paired on mount", async () => {
+    installFetchMock({
+      status: { state: "paired", phoneNumber: "972525797093" },
+    });
+    renderPair();
+
+    // No ToS alert, no "I understand" button.
+    await waitFor(() => {
+      expect(screen.getByTestId("pair-check")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/connected/i)).toBeInTheDocument();
+    expect(screen.getByTestId("pair-phone")).toHaveTextContent("+972525797093");
+    expect(
+      screen.queryByRole("button", { name: /i understand, initialize pairing/i }),
+    ).not.toBeInTheDocument();
+    // Refresh + Disconnect + Go to dashboard visible.
+    expect(screen.getByTestId("pair-refresh")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /disconnect/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /go to dashboard/i })).toBeInTheDocument();
+  });
+
+  it("clicking Refresh on the paired screen triggers another /status fetch", async () => {
+    const counters = installFetchMock({
+      status: { state: "paired", phoneNumber: "15551234567" },
+    });
+    renderPair();
+    await waitFor(() => {
+      expect(screen.getByTestId("pair-check")).toBeInTheDocument();
+    });
+    const initialCalls = counters.statusCalls;
+
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId("pair-refresh"));
+
+    await waitFor(() => {
+      expect(counters.statusCalls).toBeGreaterThan(initialCalls);
+    });
   });
 
   it("clicking 'I understand' posts /api/pair/init and transitions to generating", async () => {

@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Check, Loader2, Shield, Smartphone } from "lucide-react";
+import { Check, Loader2, RefreshCw, Shield, Smartphone } from "lucide-react";
 import { type JSX, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -56,8 +56,11 @@ const STATUS_POLL_MS = 1_000;
  * are purely client-owned.
  */
 function deriveUiFromServer(serverState: PairState, current: UiState): UiState {
-  // tos_gate is the pre-init state — if the user hasn't clicked "Initialize"
-  // yet we stay there regardless of what the server reports.
+  // Special case: if the user visits /pair and the backend says they're already
+  // paired, jump straight to the paired UI — don't make them click through the
+  // ToS gate for a session that's already established.
+  if (current === "tos_gate" && serverState === "paired") return "paired";
+  // Otherwise, stay in tos_gate until the user clicks "Initialize".
   if (current === "tos_gate") return current;
   // rate_limited is local + time-bound; let the countdown effect clear it.
   if (current === "rate_limited") return current;
@@ -118,7 +121,9 @@ export function Pair(): JSX.Element {
     // Don't retry indefinitely on network errors — one attempt is enough to
     // surface the failure; the polling loop will pick it up again next tick.
     retry: false,
-    enabled: uiState !== "tos_gate" && uiState !== "rate_limited",
+    // Always fetch on mount so we can detect an already-paired session and
+    // skip the ToS gate. Polling only kicks in during active pairing states.
+    enabled: uiState !== "rate_limited",
   });
 
   // ---- Drive UI state transitions off the latest status payload --------------------
@@ -219,9 +224,13 @@ export function Pair(): JSX.Element {
           phoneNumber,
           retryAfterSeconds,
           isInitPending: initMutation.isPending,
+          isRefreshing: statusQuery.isFetching,
           onInitialize: handleInitialize,
           onRetry: handleRetry,
           onRateLimitRetry: handleRateLimitRetry,
+          onRefresh: () => {
+            void statusQuery.refetch();
+          },
           onGoToDashboard: () => {
             void navigate("/");
           },
@@ -263,9 +272,11 @@ interface BodyProps {
   phoneNumber: string | null;
   retryAfterSeconds: number;
   isInitPending: boolean;
+  isRefreshing: boolean;
   onInitialize: () => void;
   onRetry: () => void;
   onRateLimitRetry: () => void;
+  onRefresh: () => void;
   onGoToDashboard: () => void;
   onDisconnectClick: () => void;
 }
@@ -282,6 +293,8 @@ function renderBody(props: BodyProps): JSX.Element {
       return (
         <Paired
           phoneNumber={props.phoneNumber}
+          isRefreshing={props.isRefreshing}
+          onRefresh={props.onRefresh}
           onGoToDashboard={props.onGoToDashboard}
           onDisconnectClick={props.onDisconnectClick}
         />
@@ -394,10 +407,14 @@ function AwaitingScan({ qrDataUrl }: { qrDataUrl: string | null }): JSX.Element 
 
 function Paired({
   phoneNumber,
+  isRefreshing,
+  onRefresh,
   onGoToDashboard,
   onDisconnectClick,
 }: {
   phoneNumber: string | null;
+  isRefreshing: boolean;
+  onRefresh: () => void;
   onGoToDashboard: () => void;
   onDisconnectClick: () => void;
 }): JSX.Element {
@@ -427,6 +444,19 @@ function Paired({
         </p>
       </CardContent>
       <CardFooter className="justify-end gap-2">
+        <Button
+          variant="ghost"
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          aria-label="Refresh status"
+          data-testid="pair-refresh"
+        >
+          <RefreshCw
+            className={`size-4 ${isRefreshing ? "animate-spin" : ""}`}
+            aria-hidden="true"
+          />
+          Refresh
+        </Button>
         <Button
           variant="outline"
           className="text-destructive"

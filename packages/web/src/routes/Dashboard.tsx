@@ -73,16 +73,14 @@ export function Dashboard(): JSX.Element {
             pairing code on your phone.
           </CardContent>
         )}
-        {!isPaired ? (
-          <CardFooter>
-            <Button asChild>
-              <Link to="/pair">
-                Start pairing
-                <ArrowRight className="size-4" aria-hidden="true" />
-              </Link>
-            </Button>
-          </CardFooter>
-        ) : null}
+        <CardFooter>
+          <Button asChild variant={isPaired ? "outline" : "default"}>
+            <Link to="/pair">
+              {isPaired ? "Manage connection" : "Start pairing"}
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </Button>
+        </CardFooter>
       </Card>
 
       <Card className="sm:col-span-2">

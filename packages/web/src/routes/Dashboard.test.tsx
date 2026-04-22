@@ -95,7 +95,7 @@ describe("Dashboard", () => {
     expect(skeletons.length).toBeGreaterThan(0);
   });
 
-  it("shows the linked phone instead of the CTA when /pair/status returns paired", async () => {
+  it("shows the linked phone + a 'Manage connection' button when /pair/status returns paired", async () => {
     mockStatus({
       state: "paired",
       sessionId: "sess-1",
@@ -108,7 +108,9 @@ describe("Dashboard", () => {
     });
     expect(screen.getByText(/whatsapp linked:/i)).toBeInTheDocument();
     expect(screen.getByText(/\+15551234567/)).toBeInTheDocument();
-    // CTA should be gone once paired.
+    // CTA should flip from "Start pairing" to "Manage connection" and still link to /pair.
     expect(screen.queryByRole("link", { name: /start pairing/i })).not.toBeInTheDocument();
+    const manage = screen.getByRole("link", { name: /manage connection/i });
+    expect(manage).toHaveAttribute("href", "/pair");
   });
 });
