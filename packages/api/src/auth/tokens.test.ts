@@ -21,7 +21,10 @@ describe("access tokens", () => {
 
   it("rejects tampered tokens", async () => {
     const jwt = await issueAccessToken({ sub: "u1", role: "user" });
-    const tampered = jwt.slice(0, -1) + (jwt.endsWith("a") ? "b" : "a");
+    // Flip several trailing signature chars so the tamper can't coincidentally
+    // round-trip through base64url's trailing-bit padding. A single-char flip
+    // sometimes lands on a codepoint with equivalent decoded bits.
+    const tampered = jwt.slice(0, -8) + "AAAAAAAA";
     await expect(verifyAccessToken(tampered)).rejects.toThrow();
   });
 });
@@ -35,7 +38,8 @@ describe("verifyAccessTokenForAudit (audit-only, expiry-tolerant)", () => {
 
   it("returns null for a tampered token (signature still verified)", async () => {
     const jwt = await issueAccessToken({ sub: "u-audit-2", role: "user" });
-    const tampered = jwt.slice(0, -1) + (jwt.endsWith("a") ? "b" : "a");
+    // 8-char flip — see "rejects tampered tokens" above for rationale.
+    const tampered = jwt.slice(0, -8) + "AAAAAAAA";
     await expect(verifyAccessTokenForAudit(tampered)).resolves.toBeNull();
   });
 

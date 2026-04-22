@@ -8,6 +8,17 @@ export default defineConfig({
     // testcontainers-backed tests can be slow on first pull
     testTimeout: 120_000,
     hookTimeout: 120_000,
-    coverage: { reporter: ["text", "lcov"], include: ["src/**"] },
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "lcov"],
+      include: ["src/**"],
+      exclude: ["**/*.test.ts"],
+      thresholds: {
+        statements: 95,
+        branches: 80,
+        functions: 95,
+        lines: 95,
+      },
+    },
   },
 });
