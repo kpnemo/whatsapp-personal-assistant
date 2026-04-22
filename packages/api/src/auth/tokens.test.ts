@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  REFRESH_COOKIE_NAME,
+  REFRESH_COOKIE_PATH,
   hashRefreshToken,
   issueAccessToken,
   issueRefreshToken,
+  refreshCookieOptions,
   verifyAccessToken,
   verifyAccessTokenForAudit,
 } from "./tokens.js";
@@ -53,5 +56,33 @@ describe("refresh tokens", () => {
     const a = issueRefreshToken();
     const b = issueRefreshToken();
     expect(a.token).not.toBe(b.token);
+  });
+});
+
+describe("refresh cookie options", () => {
+  it("uses the wpa_refresh name and /api/auth path", () => {
+    expect(REFRESH_COOKIE_NAME).toBe("wpa_refresh");
+    expect(REFRESH_COOKIE_PATH).toBe("/api/auth");
+  });
+
+  it("is HttpOnly + SameSite=Strict (CSRF mitigation)", () => {
+    const opts = refreshCookieOptions({ secureRequest: false, nodeEnv: "development" });
+    expect(opts.httpOnly).toBe(true);
+    expect(opts.sameSite).toBe("strict");
+  });
+
+  it("forces Secure in production even when the request isn't TLS-terminated here", () => {
+    const opts = refreshCookieOptions({ secureRequest: false, nodeEnv: "production" });
+    expect(opts.secure).toBe(true);
+  });
+
+  it("allows insecure cookies in development when the request isn't secure", () => {
+    const opts = refreshCookieOptions({ secureRequest: false, nodeEnv: "development" });
+    expect(opts.secure).toBe(false);
+  });
+
+  it("honours req.secure in development (behind a TLS-terminating proxy)", () => {
+    const opts = refreshCookieOptions({ secureRequest: true, nodeEnv: "development" });
+    expect(opts.secure).toBe(true);
   });
 });

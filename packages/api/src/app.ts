@@ -9,6 +9,7 @@ import { pinoHttp } from "pino-http";
 
 import { env } from "./env.js";
 import { logger } from "./logger.js";
+import { originGuard } from "./middleware/origin-guard.js";
 import { authRouter } from "./routes/auth.js";
 import { invitationsRouter } from "./routes/invitations.js";
 import { killRouter } from "./routes/kill.js";
@@ -28,6 +29,11 @@ export function createApp(): Express {
   );
   app.use(express.json({ limit: "1mb" }));
   app.use(cookieParser());
+  // CSRF defence-in-depth: SameSite=Strict on the refresh cookie is primary;
+  // this rejects unsafe-method requests whose Origin header is set but doesn't
+  // match our allow-list. Must run after cookieParser so guard can protect
+  // cookie-bearing mutations.
+  app.use(originGuard({ allowedOrigins: [env.PUBLIC_ORIGIN] }));
   app.use(pinoHttp({ logger }));
 
   app.get("/healthz", (_req, res) => {

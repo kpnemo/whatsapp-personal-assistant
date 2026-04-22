@@ -7,6 +7,8 @@ import { z } from "zod";
 import { writeAudit } from "../audit/writeAudit.js";
 import { hashRefreshToken } from "../auth/tokens.js";
 import { type AuthedResponse, requireAdmin, requireAuth } from "../middleware/auth.js";
+import { createRateLimiter } from "../middleware/rate-limit.js";
+import { getRedis } from "../redis.js";
 
 const createSchema = z.object({
   email: z.string().email(),
@@ -15,9 +17,20 @@ const createSchema = z.object({
 
 export function invitationsRouter(): Router {
   const r = Router();
-  r.use(requireAuth, requireAdmin);
 
-  r.post("/invitations", async (req: Request, res: AuthedResponse) => {
+  const createLimiter = createRateLimiter({
+    redis: getRedis(),
+    keyPrefix: "rl:invitations:create",
+    points: 10,
+    duration: 60 * 60,
+    keyBy: "user",
+  });
+
+  // Path-scope the auth gate so it does NOT fire for unrelated /api/* routes
+  // that happen to traverse this router (kill, auth/me, etc).
+  r.use("/invitations", requireAuth, requireAdmin);
+
+  r.post("/invitations", createLimiter, async (req: Request, res: AuthedResponse) => {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "invalid_input" });

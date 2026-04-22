@@ -5,13 +5,17 @@ import { z } from "zod";
 
 import { writeAudit } from "../audit/writeAudit.js";
 import { AuthError, login, registerUser, revokeRefresh, rotateRefresh } from "../auth/service.js";
-import { hashRefreshToken, verifyAccessTokenForAudit } from "../auth/tokens.js";
+import {
+  REFRESH_COOKIE_NAME,
+  REFRESH_COOKIE_PATH,
+  hashRefreshToken,
+  refreshCookieOptions,
+  verifyAccessTokenForAudit,
+} from "../auth/tokens.js";
 import { env } from "../env.js";
 import { type AuthedResponse, requireAuth } from "../middleware/auth.js";
-import { authRateLimiter } from "../middleware/ratelimit.js";
-
-const REFRESH_COOKIE = "wpa_refresh";
-const REFRESH_MAX_AGE_MS = 7 * 86_400 * 1000;
+import { createRateLimiter } from "../middleware/rate-limit.js";
+import { getRedis } from "../redis.js";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -26,8 +30,41 @@ const registerSchema = z.object({
 
 export function authRouter(): Router {
   const r = Router();
+  const redis = getRedis();
 
-  r.post("/auth/login", authRateLimiter, async (req, res) => {
+  const loginLimiter = createRateLimiter({
+    redis,
+    keyPrefix: "rl:auth:login",
+    points: 5,
+    duration: 15 * 60,
+    keyBy: "ip",
+  });
+
+  const registerLimiter = createRateLimiter({
+    redis,
+    keyPrefix: "rl:auth:register",
+    points: 3,
+    duration: 60 * 60,
+    keyBy: "ip",
+  });
+
+  const refreshLimiter = createRateLimiter({
+    redis,
+    keyPrefix: "rl:auth:refresh",
+    points: 30,
+    duration: 60 * 60,
+    keyBy: "ip",
+  });
+
+  const logoutLimiter = createRateLimiter({
+    redis,
+    keyPrefix: "rl:auth:logout",
+    points: 60,
+    duration: 60 * 60,
+    keyBy: "ip+user",
+  });
+
+  r.post("/auth/login", loginLimiter, async (req, res) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "invalid_input" });
@@ -38,13 +75,11 @@ export function authRouter(): Router {
         ip: req.ip,
         userAgent: req.header("user-agent") ?? undefined,
       });
-      res.cookie(REFRESH_COOKIE, result.refreshToken, {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: req.secure,
-        maxAge: REFRESH_MAX_AGE_MS,
-        path: "/api/auth",
-      });
+      res.cookie(
+        REFRESH_COOKIE_NAME,
+        result.refreshToken,
+        refreshCookieOptions({ secureRequest: req.secure, nodeEnv: env.NODE_ENV }),
+      );
       await writeAudit({ userId: result.userId, type: "login" });
       res.json({ accessToken: result.accessToken, userId: result.userId, role: result.role });
     } catch (err) {
@@ -57,9 +92,9 @@ export function authRouter(): Router {
     }
   });
 
-  r.post("/auth/refresh", async (req, res) => {
+  r.post("/auth/refresh", refreshLimiter, async (req, res) => {
     const cookies = req.cookies as Record<string, unknown> | undefined;
-    const token = cookies?.[REFRESH_COOKIE];
+    const token = cookies?.[REFRESH_COOKIE_NAME];
     if (typeof token !== "string") {
       res.status(401).json({ error: "no_refresh" });
       return;
@@ -69,25 +104,23 @@ export function authRouter(): Router {
       userAgent: req.header("user-agent") ?? undefined,
     });
     if (!rotated) {
-      res.clearCookie(REFRESH_COOKIE, { path: "/api/auth" });
+      res.clearCookie(REFRESH_COOKIE_NAME, { path: REFRESH_COOKIE_PATH });
       res.status(401).json({ error: "invalid_refresh" });
       return;
     }
-    res.cookie(REFRESH_COOKIE, rotated.refreshToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: req.secure,
-      maxAge: REFRESH_MAX_AGE_MS,
-      path: "/api/auth",
-    });
+    res.cookie(
+      REFRESH_COOKIE_NAME,
+      rotated.refreshToken,
+      refreshCookieOptions({ secureRequest: req.secure, nodeEnv: env.NODE_ENV }),
+    );
     res.json({ accessToken: rotated.accessToken });
   });
 
-  r.post("/auth/logout", async (req, res: AuthedResponse) => {
+  r.post("/auth/logout", logoutLimiter, async (req, res: AuthedResponse) => {
     const cookies = req.cookies as Record<string, unknown> | undefined;
-    const token = cookies?.[REFRESH_COOKIE];
+    const token = cookies?.[REFRESH_COOKIE_NAME];
     if (typeof token === "string") await revokeRefresh(token);
-    res.clearCookie(REFRESH_COOKIE, { path: "/api/auth" });
+    res.clearCookie(REFRESH_COOKIE_NAME, { path: REFRESH_COOKIE_PATH });
 
     // Best-effort audit attribution: /auth/logout is public (no requireAuth),
     // so res.locals.user is unset. Recover sub from the bearer if present,
@@ -123,7 +156,7 @@ export function authRouter(): Router {
     res.json(user);
   });
 
-  r.post("/auth/register", authRateLimiter, async (req, res) => {
+  r.post("/auth/register", registerLimiter, async (req, res) => {
     const parsed = registerSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: "invalid_input" });
