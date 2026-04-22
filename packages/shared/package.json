@@ -18,6 +18,7 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
+    "@wpa/db": "workspace:*",
     "zod": "3.23.8"
   }
 }
